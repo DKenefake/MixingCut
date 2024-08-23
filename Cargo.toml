@@ -18,3 +18,4 @@ lto = true
 opt-level = 3
 codegen-units = 1
 incremental = false
+target-cpu = "native"

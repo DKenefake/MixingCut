@@ -1,10 +1,7 @@
 use ndarray::Array2;
+use ndarray_linalg::norm::normalize;
+use ndarray_linalg::NormalizeAxis;
 
-pub(crate) fn project(mut V: Array2<f64>) -> Array2<f64> {
-    // normallize all rows to have unit norm
-    for i in 0..V.shape()[0] {
-        let norm = V.row(i).dot(&V.row(i)).sqrt();
-        V.row_mut(i).mapv_inplace(|x| x / norm);
-    }
-    V
+pub(crate) fn project(V: Array2<f64>) -> Array2<f64> {
+    normalize(V, NormalizeAxis::Row).0
 }

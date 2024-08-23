@@ -29,55 +29,74 @@ fn grad(Q: &CsMat<f64>, V:&Array2<f64>) -> Array2<f64>{
     2.0 * (Q * V)
 }
 
-fn make_step(Q: &CsMat<f64>, V: &Array2<f64>, alpha_safe: f64 ) -> (Array2<f64>, f64, f64){
+fn make_step(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
     let grad = grad(&Q, &V);
-    let V_new =  sdp_project::project(V - alpha_safe * grad);
-    let obj_new = obj(&Q, &V_new);
-    (V_new, obj_new,alpha_safe)
+    sdp_project::project(V - alpha_safe * grad)
 }
 
-fn make_step_adv(Q: &CsMat<f64>, V: &Array2<f64>, alpha_safe: f64 ) -> (Array2<f64>, f64, f64){
+fn make_step_adv(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
     let grad = grad(&Q, &V);
 
-    // let V_abs = V.mapv(|x| x.abs());
-
-    let f_0 = obj(&Q, V);
-    let x = obj(&Q, &(V + alpha_safe * &grad)) - f_0;
-    let y = obj(&Q, &(V - alpha_safe * &grad)) - f_0;
+    let f_0 = obj(&Q, &V);
+    let x = obj(&Q, &(&V + alpha_safe * &grad)) - f_0;
+    let y = obj(&Q, &(&V - alpha_safe * &grad)) - f_0;
 
     let mut alpha = (0.5*(y - x)* alpha_safe)/(x + y);
 
-    if alpha < 0.0{
-        alpha = -alpha;
+    let proposed_step_val = obj(&Q, &(&V - alpha * &grad));
+
+    if proposed_step_val > f_0{
+        alpha = alpha_safe;
     }
 
-    let V_new =  sdp_project::project(V - alpha * grad);
-    let obj_new = obj(&Q, &V_new);
-    (V_new, obj_new, alpha)
+    sdp_project::project(V - alpha * grad)
 }
 
-fn make_step_coord(Q: &CsMat<f64>, V: &Array2<f64>, alpha_safe: f64 ) -> (Array2<f64>, f64, f64){
-
-    let mut V_new = V.clone();
+fn make_step_coord(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
 
     for i in 0..Q.shape().0{
 
         let Q_i= Q.outer_view(i).unwrap();
 
+        let mut g_i = Array1::<f64>::zeros(V.shape()[1]);
+
         // compute g_i
-        let mut g_i = Q_i.iter().map(|(k, &v)| -v * &V.row(k)).fold( Array1::<f64>::zeros(V.shape()[1]), |acc, x| acc + x);
+        for (k, &v) in Q_i.iter() {
+            g_i = g_i + v * &V.row(k);
+        }
 
         // normalize g_i
-        // let norm = g_i.dot(&g_i).sqrt();
+        g_i = &V.row(i) - alpha_safe * g_i;
         g_i /= g_i.norm_l2();
 
-        V_new.row_mut(i).assign(&g_i);
+        V.row_mut(i).assign(&g_i);
 
     }
 
-    let new_obj = obj(Q, &V_new);
+    V
+}
 
-    (V_new, new_obj, alpha_safe)
+fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
+
+    for i in 0..Q.shape().0{
+
+        let Q_i= Q.outer_view(i).unwrap();
+
+        let mut g_i = Array1::<f64>::zeros(V.shape()[1]);
+
+        // compute g_i
+        for (k, &v) in Q_i.iter() {
+            g_i = g_i - v * &V.row(k);
+        }
+
+        // normalize g_i
+        g_i /= g_i.norm_l2();
+
+        V.row_mut(i).assign(&g_i);
+
+    }
+
+    V
 }
 
 fn make_random_matrix(n:usize, k:usize) -> Array2<f64>{
@@ -93,7 +112,7 @@ fn make_random_matrix(n:usize, k:usize) -> Array2<f64>{
         }
     }
 
-    V
+    sdp_project::project(V)
 }
 
 fn get_Q_norm(Q: &CsMat<f64>) -> f64 {
@@ -101,7 +120,6 @@ fn get_Q_norm(Q: &CsMat<f64>) -> f64 {
     let mut c = Array1::<f64>::zeros(Q.shape().0);
     for (q_ij, (i, j)) in Q.iter() {
         c[i] += q_ij.abs();
-        c[j] += q_ij.abs();
     }
     c.iter().max_by(|&a, &b| a.total_cmp(b)).unwrap().clone()
 }
@@ -113,8 +131,8 @@ fn main() {
     let Q_norm = get_Q_norm(&Q);
 
     let n = Q.shape().0;
-    let k = (2.0*n as f64 + 1.0).sqrt() as usize;
-    // let k = 5;
+    // let k = (2.0*n as f64 + 1.0).sqrt() as usize;
+    let k = 5;
 
     let mut V = make_random_matrix(n, k);
 
@@ -122,15 +140,16 @@ fn main() {
     println!("NNZ(Q) {:?}", Q.nnz());
     println!("Q norm {:?}", Q_norm);
     println!("Size of V {:?}", V.shape());
+    let alpha_safe = 2.0 / Q_norm;
 
-    for i in 0..1000000{
-        let alpha_safe = 1.0 / Q_norm;
+    let start = current_time();
 
-        let (V_new, obj_new, step_size) = make_step(&Q, &V, alpha_safe);
+    for i in 0..10000{
 
-        V = V_new;
-        if i % 1000 == 0{
-            println!("{} {}" , i, obj_new);
+        V = make_step_coord_no_step(&Q, V, alpha_safe);
+
+        if i % 100 == 0{
+            println!("{} {} {}" , i, obj(&Q, &V), current_time() - start);
         }
     }
 
