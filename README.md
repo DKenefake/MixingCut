@@ -3,7 +3,7 @@ Solver for the MaxCut SDP relaxation via mixing cut algorithm proposed by Po-Wei
 
 $$
 \begin{align*}
-\min &tr(QX) \\
+\min &\text{tr}(QX) \\
 s.t. &X_{ii} = 1\\
 &X \succeq 0
 \end{align*}
