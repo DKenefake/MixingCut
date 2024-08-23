@@ -1,12 +1,13 @@
 # MixingCut Solver
 Solver for the MaxCut SDP relaxation via mixing cut algorithm proposed by Po-Wei Wang et al [1]. Where theis SPD is solved via a low rank reformulation that is exact under certain conditions.
 
-```math
-\min tr(QX) \\
+$$
+\begin{align*}
+\min &tr(QX) \\
 s.t. &X_{ii} = 1\\
 &X \succeq 0
-```
-
+\end{align*}
+$$
 # Expeced File Format
 The solver reads the input from a file in the following format: Where `n` is the number of vertices, `i` and `j` are the vertices of the edge and `q_ij` is the weight of the edge.
 
