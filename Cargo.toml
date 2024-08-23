@@ -11,6 +11,7 @@ ndarray = "0.15.6"
 ndarray-linalg = { version = "0.16.0", features = ["intel-mkl-static"] }
 ndarray-rand = "0.15.0"
 rayon = "1.10.0"
+smolprng = { version = "0.1.6", features = ["std"] }
 
 [profile.dev]
 lto = true
