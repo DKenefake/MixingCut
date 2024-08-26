@@ -3,13 +3,26 @@ mod sdp_project;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use ndarray::{Array1, Array2};
-use rayon::prelude::*;
 use ndarray::linalg::Dot;
 use ndarray_linalg::{Norm, Trace};
 use smolprng::PRNG;
 use sprs::{CsMat};
 use smolprng::Algorithm;
 use smolprng::*;
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args{
+    // Name of the filepath
+    #[clap(short, long)]
+    path: String,
+
+    // Number of iterations
+    #[clap(short, long)]
+    iters: usize,
+}
+
 
 fn current_time() -> u128 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros()
@@ -19,7 +32,27 @@ fn obj(Q: &CsMat<f64>, V:&Array2<f64>) -> f64{
     let mut trace = 0.0;
 
     for (q_ij, (i, j)) in Q.iter() {
-        trace += q_ij * V.row(i).dot(&V.row(j));
+        if i == j{
+            trace += q_ij * V.row(i).dot(&V.row(j));
+        }
+        else{
+            trace += 2.0 * q_ij * V.row(i).dot(&V.row(j));
+        }
+    }
+
+    trace
+}
+
+fn obj_rounded(Q: &CsMat<f64>, x_0: &Array1<f64>) -> f64{
+    let mut trace = 0.0;
+
+    for (q_ij, (i, j)) in Q.iter() {
+        if i == j{
+            trace += q_ij * x_0[i] * x_0[i];
+        }
+        else{
+            trace += 2.0 * q_ij * x_0[i] * x_0[j];
+        }
     }
 
     trace
@@ -115,6 +148,37 @@ fn make_random_matrix(n:usize, k:usize) -> Array2<f64>{
     sdp_project::project(V)
 }
 
+fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize, seed: usize) -> (Array1<f64>, f64){
+
+    let mut prng = PRNG {
+        generator: JsfLarge::default(),
+    };
+
+
+    let mut best_sol = Array1::zeros(V.shape()[0]);
+    let mut best_obj = f64::MAX;
+    let mut x_scratch = Array1::zeros(V.shape()[0]);
+    let mut r_scratch = Array1::zeros(V.shape()[1]);
+
+    for _ in 0..iters{
+        for i in 0..r_scratch.len() {
+            r_scratch[i] = prng.normal();
+        }
+
+        x_scratch.assign(&V.dot(&r_scratch));
+        x_scratch.mapv_inplace(|x| if x > 0.0 {1.0} else {-1.0});
+
+        let obj_rounded = obj_rounded(&Q, &x_scratch);
+
+        if obj_rounded < best_obj{
+            best_obj = obj_rounded;
+            best_sol.assign(&x_scratch);
+        }
+    }
+
+    (best_sol, best_obj)
+}
+
 fn get_Q_norm(Q: &CsMat<f64>) -> f64 {
     // compute the l1 norm of Q
     let mut c = Array1::<f64>::zeros(Q.shape().0);
@@ -126,13 +190,16 @@ fn get_Q_norm(Q: &CsMat<f64>) -> f64 {
 
 fn main() {
 
-    let Q = read_graph::read_graph_matrix("graphs/G_35.graph");
+    let args: Args = Args::parse();
+
+    let Q = read_graph::read_graph_matrix(&args.path);
+    let max_iters = args.iters;
+    let k = 2 * (2.0 * Q.rows() as f64).log2() as usize;
 
     let Q_norm = get_Q_norm(&Q);
 
     let n = Q.shape().0;
-    // let k = (2.0*n as f64 + 1.0).sqrt() as usize;
-    let k = 5;
+
 
     let mut V = make_random_matrix(n, k);
 
@@ -144,7 +211,7 @@ fn main() {
 
     let start = current_time();
 
-    for i in 0..10000{
+    for i in 0..max_iters{
 
         V = make_step_coord_no_step(&Q, V, alpha_safe);
 
@@ -153,5 +220,8 @@ fn main() {
         }
     }
 
+    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 1000, 0);
+
+    println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
 
 }
