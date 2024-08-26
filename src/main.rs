@@ -21,6 +21,7 @@ struct Args{
     // Number of iterations
     #[clap(short, long)]
     iters: usize,
+
 }
 
 
@@ -161,10 +162,8 @@ fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize, seed: usiz
     let mut r_scratch = Array1::zeros(V.shape()[1]);
 
     for _ in 0..iters{
-        for i in 0..r_scratch.len() {
-            r_scratch[i] = prng.normal();
-        }
 
+        r_scratch.mapv_inplace(|x| prng.normal());
         x_scratch.assign(&V.dot(&r_scratch));
         x_scratch.mapv_inplace(|x| if x > 0.0 {1.0} else {-1.0});
 
@@ -194,7 +193,14 @@ fn main() {
 
     let Q = read_graph::read_graph_matrix(&args.path);
     let max_iters = args.iters;
-    let k = 2 * (2.0 * Q.rows() as f64).log2() as usize;
+
+    // let k = if args.full_rank{
+    //     (2.0 * Q.rows() as f64).sqrt() as usize
+    // }else {
+    //     2 * (2.0 * Q.rows() as f64).log2() as usize
+    // };
+
+    let k = (2.0 * Q.rows() as f64).sqrt() as usize + 1;
 
     let Q_norm = get_Q_norm(&Q);
 

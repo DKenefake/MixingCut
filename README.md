@@ -28,9 +28,11 @@ Where:
 The solver reads the input from a file in the following format: Where `n` is the number of vertices, `i` and `j` are the vertices of the edge and `q_ij` is the weight of the edge.
 
 ```
-n 
-i j q_ij
-....
+n   m
+i_1 j_1 q_{i_1,j_1}
+i_2 j_2 q_{i_2,j_2}
+...
+i_m j_m q_{i_m,j_m}
 ```
 
 # More Info 
