@@ -22,6 +22,8 @@ struct Args{
     #[clap(short, long)]
     iters: usize,
 
+    #[clap(short, long)]
+    rank: usize,
 }
 
 
@@ -194,13 +196,12 @@ fn main() {
     let Q = read_graph::read_graph_matrix(&args.path);
     let max_iters = args.iters;
 
-    // let k = if args.full_rank{
-    //     (2.0 * Q.rows() as f64).sqrt() as usize
-    // }else {
-    //     2 * (2.0 * Q.rows() as f64).log2() as usize
-    // };
 
-    let k = (2.0 * Q.rows() as f64).sqrt() as usize + 1;
+    let k = match args.rank {
+        0 => 2 * (Q.shape().0 as f64).log2() as usize,
+        1 => 2 * (Q.shape().0 as f64).sqrt() as usize,
+        _ => args.rank,
+    };
 
     let Q_norm = get_Q_norm(&Q);
 
