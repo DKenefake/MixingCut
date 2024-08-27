@@ -4,7 +4,7 @@ use std::io::Write;
 use ndarray::Array1;
 use sprs::{CsMat, TriMat};
 
-pub(crate) fn read_graph_matrix(path: &str) -> CsMat<f64>{
+pub(crate) fn read_graph_matrix(path: &str, index_correction: usize) -> CsMat<f64>{
 
     // open the file and create a reader
     let file = std::fs::File::open(path).unwrap();
@@ -25,18 +25,18 @@ pub(crate) fn read_graph_matrix(path: &str) -> CsMat<f64>{
     while reader.read_line(&mut line).unwrap() > 0 {
         let row_data: Vec<_> = line.split_whitespace().collect();
 
-        if row_data.len() == 3 {
-            let i = row_data[0].parse::<usize>().unwrap() - 1;
-            let j = row_data[1].parse::<usize>().unwrap() - 1;
-            let value = row_data[2].parse::<f64>().unwrap();
+        let (i, j , value) = match row_data.len(){
+            3 => (row_data[0].parse::<usize>().unwrap() - index_correction, row_data[1].parse::<usize>().unwrap() - index_correction, row_data[2].parse::<f64>().unwrap()),
+            2 => (row_data[0].parse::<usize>().unwrap() - index_correction, row_data[1].parse::<usize>().unwrap() - index_correction, 1.0),
+            _ => (0, 0, 0.0)
+        };
 
-            if i == j{
-                q.add_triplet(i, j, value);
-            }
-            else{
-                q.add_triplet(i, j, 0.5 * value);
-                q.add_triplet(j, i, 0.5 * value);
-            }
+        if i == j{
+            q.add_triplet(i, j, value);
+        }
+        else{
+            q.add_triplet(i, j, 0.5 * value);
+            q.add_triplet(j, i, 0.5 * value);
         }
 
         // reset the line

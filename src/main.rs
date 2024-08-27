@@ -39,6 +39,10 @@ struct Args{
     #[clap(short, long, default_value = "grad")]
     step_rule: String,
 
+    // index correction
+    #[clap(long, default_value = "1")]
+    index_correction: usize,
+
 }
 
 
@@ -51,8 +55,11 @@ fn main() {
     // parse the arguments
     let args: Args = Args::parse();
 
+    // find the index correction
+    let index_correction = args.index_correction;
+
     // read in the graph
-    let Q = read_graph::read_graph_matrix(&args.input_path);
+    let Q = read_graph::read_graph_matrix(&args.input_path, index_correction);
 
     // get the norm of Q
     let Q_norm = get_Q_norm(&Q);
