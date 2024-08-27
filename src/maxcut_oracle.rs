@@ -52,7 +52,6 @@ pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize,
         generator: JsfLarge::default(),
     };
 
-
     let mut best_sol = Array1::zeros(V.shape()[0]);
     let mut best_obj = f64::MAX;
     let mut x_scratch = Array1::zeros(V.shape()[0]);

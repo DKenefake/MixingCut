@@ -5,31 +5,38 @@ mod maxcut_oracle;
 mod initialize;
 
 use std::time::{SystemTime, UNIX_EPOCH};
-use ndarray::{Array1, Array2};
 use ndarray::linalg::Dot;
 use ndarray_linalg::{Norm, Trace};
-use smolprng::PRNG;
-use sprs::{CsMat};
 use smolprng::Algorithm;
 use smolprng::*;
 use clap::Parser;
 use crate::initialize::make_random_matrix;
 use crate::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj};
+use crate::read_graph::write_solution_matrix;
 use crate::step_rules::make_step_coord_no_step;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args{
-    // Name of the filepath
+    // Name of the input file
     #[clap(short, long)]
-    path: String,
+    input_path: String,
+
+    // Name of the output file
+    #[clap(short, long, default_value = "output.txt")]
+    output_path: String,
+
+    #[clap(short, long, default_value = "0")]
+    rank: usize,
+
+    // The stopping tolerance
+    #[clap(short, long, default_value = "1e-6")]
+    tolerance: f64,
 
     // Number of iterations
-    #[clap(short, long)]
-    iters: usize,
+    #[clap(short, long, default_value = "1000")]
+    max_iters: usize,
 
-    #[clap(short, long)]
-    rank: usize,
 }
 
 
@@ -41,11 +48,11 @@ fn main() {
 
     let args: Args = Args::parse();
 
-    let Q = read_graph::read_graph_matrix(&args.path);
+    let Q = read_graph::read_graph_matrix(&args.input_path);
     let Q_norm = get_Q_norm(&Q);
     let n = Q.shape().0;
 
-    let max_iters = args.iters;
+    let max_iters = args.max_iters;
 
 
     let k = match args.rank {
@@ -76,5 +83,7 @@ fn main() {
     let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 1000, 0);
 
     println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
+
+    write_solution_matrix(&args.output_path, x_0, obj_rounded);
 
 }

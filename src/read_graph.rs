@@ -1,8 +1,12 @@
 use std::io::BufRead;
+use std::io::Write;
+
+use ndarray::Array1;
 use sprs::{CsMat, TriMat};
 
 pub(crate) fn read_graph_matrix(path: &str) -> CsMat<f64>{
 
+    // open the file and create a reader
     let file = std::fs::File::open(path).unwrap();
     let mut reader = std::io::BufReader::new(file);
 
@@ -11,7 +15,9 @@ pub(crate) fn read_graph_matrix(path: &str) -> CsMat<f64>{
     reader.read_line(&mut line).unwrap();
     let num_x = line.trim().parse::<usize>().unwrap();
 
+    // reset the line
     line = String::new();
+
     // set up the sparse matrix and dense vector
     let mut q = TriMat::<f64>::new((num_x, num_x));
 
@@ -30,6 +36,22 @@ pub(crate) fn read_graph_matrix(path: &str) -> CsMat<f64>{
         // reset the line
         line = String::new();
     }
+    // convert from triplet to crs format
+    q.to_csr()
+}
 
-    q.to_csc()
+pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj: f64) -> () {
+
+    // open the file and create a writer
+    let file = std::fs::File::create(path).unwrap();
+    let mut writer = std::io::BufWriter::new(file);
+
+    // write the objective value
+    writeln!(writer, "{}", obj).unwrap();
+
+    // write the solution vector
+    for (i, &x) in x_0.iter().enumerate(){
+        writeln!(writer, "{}", x).unwrap();
+    }
+
 }
