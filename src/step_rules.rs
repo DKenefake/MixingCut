@@ -4,14 +4,42 @@ use sprs::CsMat;
 use crate::{obj, sdp_project};
 use crate::maxcut_oracle::grad;
 
-pub fn make_step(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
+#[derive(Clone, Copy)]
+pub enum StepRule{
+    Grad(f64),
+    GradAdv(f64),
+    Coord(f64),
+    CoordNoStep
+}
+
+pub fn generate_step_rule(step_rule: &str, alpha: f64) -> StepRule{
+    match step_rule{
+        "grad" => StepRule::Grad(alpha),
+        "grad_adv" => StepRule::GradAdv(alpha),
+        "coord" => StepRule::Coord(alpha),
+        "coord_no_step" => StepRule::CoordNoStep,
+        _ => StepRule::Grad(alpha)
+    }
+}
+
+pub fn apply_step(Q: &CsMat<f64>, V: Array2<f64>, step_rule: StepRule) -> Array2<f64>{
+    match step_rule{
+        StepRule::Grad(alpha) => make_step(Q, V, alpha),
+        StepRule::GradAdv(alpha) => make_step_adv(Q, V, alpha),
+        StepRule::Coord(alpha) => make_step_coord(Q, V, alpha),
+        StepRule::CoordNoStep => make_step_coord_no_step(Q, V),
+    }
+}
+
+
+pub fn make_step(Q: &CsMat<f64>, V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
     // compute gradient
     let grad = grad(&Q, &V);
     // take gradient step and project
     sdp_project::project(V - alpha_safe * grad)
 }
 
-pub fn make_step_adv(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
+pub fn make_step_adv(Q: &CsMat<f64>, V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
     // compute gradient
     let grad = grad(&Q, &V);
 
@@ -63,7 +91,7 @@ pub fn make_step_coord(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> 
     V
 }
 
-pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
+pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64>{
 
     // apply coordinate descent without a step size
     for i in 0..Q.shape().0{

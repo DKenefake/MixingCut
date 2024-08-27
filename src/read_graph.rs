@@ -29,8 +29,14 @@ pub(crate) fn read_graph_matrix(path: &str) -> CsMat<f64>{
             let i = row_data[0].parse::<usize>().unwrap() - 1;
             let j = row_data[1].parse::<usize>().unwrap() - 1;
             let value = row_data[2].parse::<f64>().unwrap();
-            q.add_triplet(i, j, value);
-            q.add_triplet(j, i, value);
+
+            if i == j{
+                q.add_triplet(i, j, value);
+            }
+            else{
+                q.add_triplet(i, j, 0.5 * value);
+                q.add_triplet(j, i, 0.5 * value);
+            }
         }
 
         // reset the line
@@ -50,7 +56,7 @@ pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj: f64) -> (
     writeln!(writer, "{}", obj).unwrap();
 
     // write the solution vector
-    for (i, &x) in x_0.iter().enumerate(){
+    for (_, &x) in x_0.iter().enumerate(){
         writeln!(writer, "{}", x).unwrap();
     }
 

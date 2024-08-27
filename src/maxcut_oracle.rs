@@ -6,7 +6,7 @@ use sprs::CsMat;
 pub fn get_Q_norm(Q: &CsMat<f64>) -> f64 {
     // compute the l1 norm of Q
     let mut c = Array1::<f64>::zeros(Q.shape().0);
-    for (q_ij, (i, j)) in Q.iter() {
+    for (q_ij, (i, _)) in Q.iter() {
         c[i] += q_ij.abs();
     }
     c.iter().max_by(|&a, &b| a.total_cmp(b)).unwrap().clone()
@@ -46,7 +46,7 @@ pub fn grad(Q: &CsMat<f64>, V:&Array2<f64>) -> Array2<f64>{
     2.0 * (Q * V)
 }
 
-pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize, seed: usize) -> (Array1<f64>, f64){
+pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize) -> (Array1<f64>, f64){
 
     let mut prng = PRNG {
         generator: JsfLarge::default(),
@@ -59,7 +59,7 @@ pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize,
 
     for _ in 0..iters{
 
-        r_scratch.mapv_inplace(|x| prng.normal());
+        r_scratch.mapv_inplace(|_| prng.normal());
         r_scratch /= r_scratch.norm_l2();
 
         x_scratch.assign(&V.dot(&r_scratch));
