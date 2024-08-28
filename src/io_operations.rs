@@ -46,14 +46,18 @@ pub(crate) fn read_graph_matrix(path: &str, index_correction: usize) -> CsMat<f6
     q.to_csr()
 }
 
-pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj: f64) -> () {
+pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f64, obj_relaxed:f64) -> () {
 
     // open the file and create a writer
     let file = std::fs::File::create(path).unwrap();
     let mut writer = std::io::BufWriter::new(file);
 
-    // write the objective value
-    writeln!(writer, "{}", obj).unwrap();
+    // write the SDP objective value
+    writeln!(writer, "{}", obj_relaxed).unwrap();
+
+    // write the rounded objective value
+    writeln!(writer, "{}", obj_rounded).unwrap();
+
 
     // write the solution vector
     for (_, &x) in x_0.iter().enumerate(){

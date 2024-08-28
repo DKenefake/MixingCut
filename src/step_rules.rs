@@ -93,21 +93,21 @@ pub fn make_step_coord(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64 ) -> 
 
 pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64>{
 
+    // make a scratch space for the gradient
+    let mut g_i = Array1::<f64>::zeros(V.shape()[1]);
+
     // apply coordinate descent without a step size
     for i in 0..Q.shape().0{
 
         // take a view of the i-th row of Q
         let Q_i= Q.outer_view(i).unwrap();
 
-        // make a scratch space for the gradient
-        let mut g_i = Array1::<f64>::zeros(V.shape()[1]);
-
         // compute g_i
         for (k, &v) in Q_i.iter() {
             g_i = g_i - v * &V.row(k);
         }
 
-        if g_i.norm_l2() == 0.0{
+        if g_i.norm_l2() <= 1E-24{
             continue;
         }
 
@@ -117,6 +117,8 @@ pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64
         // update the i-th row of V
         V.row_mut(i).assign(&g_i);
 
+        // zero out g_i
+        g_i.mapv_inplace(|_| 0.0);
     }
 
     V

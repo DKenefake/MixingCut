@@ -1,6 +1,6 @@
 #![allow(non_snake_case)] // reasoning: The code is based on linear algebra notation (X is a matrix, x is a vector)
 
-mod read_graph;
+mod io_operations;
 mod sdp_project;
 mod step_rules;
 mod maxcut_oracle;
@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use crate::initialize::make_random_matrix;
 use crate::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj};
-use crate::read_graph::write_solution_matrix;
+use crate::io_operations::write_solution_matrix;
 use crate::step_rules::generate_step_rule;
 
 #[derive(Parser, Debug)]
@@ -28,7 +28,7 @@ struct Args{
     rank: usize,
 
     // The stopping tolerance
-    #[clap(short, long, default_value = "1e-6")]
+    #[clap(short, long, default_value = "1e-2")]
     tolerance: f64,
 
     // Number of iterations
@@ -36,13 +36,16 @@ struct Args{
     max_iters: usize,
 
     // Step Rule
-    #[clap(short, long, default_value = "grad")]
+    #[clap(short, long, default_value = "coord_no_step")]
     step_rule: String,
 
     // index correction
     #[clap(long, default_value = "1")]
     index_correction: usize,
 
+    // compute dual bound
+    #[clap(short, long, default_value = "0")]
+    dual_bound: usize,
 }
 
 
@@ -59,7 +62,7 @@ fn main() {
     let index_correction = args.index_correction;
 
     // read in the graph
-    let Q = read_graph::read_graph_matrix(&args.input_path, index_correction);
+    let Q = io_operations::read_graph_matrix(&args.input_path, index_correction);
 
     // get the norm of Q
     let Q_norm = get_Q_norm(&Q);
@@ -95,25 +98,50 @@ fn main() {
     // get current time
     let start = current_time();
 
+    let mut obj_val = obj(&Q, &V);
+
+
+
     // iterate over the number of iterations
     for i in 0..max_iters{
 
         // apply the step rule
         V = step_rules::apply_step(&Q, V, step_rule);
 
-        // every 100 iterations, print the objective value
-        if i % 100 == 0{
+        // compute the objective value
+        let new_obj_val = obj(&Q, &V);
+
+        if (new_obj_val - obj_val).abs()  < args.tolerance{
             println!("{} {} {}" , i, obj(&Q, &V), current_time() - start);
+            break;
+        }
+
+        if new_obj_val > obj_val{
+            println!("Objective value is not decreasing");
+            break;
+        }
+
+        obj_val = new_obj_val;
+
+        // every 100 iterations, print the objective value
+        if i % 1 == 0{
+            println!("{} {} {}" , i, obj_val, current_time() - start);
         }
     }
 
     // compute the rounded solution
-    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 1000);
+    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 10);
 
     // print the rounded solution
     println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
 
+    // print the dual bound
+    if args.dual_bound == 1{
+        let dual_bound = maxcut_oracle::dual_bound(&Q, &V);
+        println!("Dual bound: {:?}", dual_bound);
+    }
+
     // write the solution to a file
-    write_solution_matrix(&args.output_path, x_0, obj_rounded);
+    write_solution_matrix(&args.output_path, x_0, obj_rounded, obj(&Q, &V));
 
 }

@@ -1,5 +1,5 @@
 use ndarray::{Array1, Array2};
-use ndarray_linalg::Norm;
+use ndarray_linalg::{EigValsh, Norm, UPLO};
 use smolprng::{JsfLarge, PRNG};
 use sprs::CsMat;
 
@@ -50,12 +50,38 @@ pub fn dual_variables(Q: &CsMat<f64>, V: &Array2<f64>) -> Array1<f64>{
 
     // based on equation 8 of https://arxiv.org/pdf/0807.4423
     let mut dual = Array1::<f64>::zeros(Q.shape().0);
-    let G = -(Q * V);
+    let G = Q * V;
     for i in 0..Q.shape().0{
-        dual[i] = G.row(i).dot(&V.row(i));
+        dual[i] = 2.0 * (G.row(i).dot(&V.row(i)));
     }
 
     dual
+}
+
+
+pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64{
+    // this is very expensive to compute O(n^3) no matter what
+    let n = Q.shape().0 as f64;
+    let y = dual_variables(Q, V);
+    let y_sum = y.iter().sum::<f64>();
+    let mut S = Q.to_dense();
+
+    for i in 0..Q.shape().0{
+        S[[i, i]] -= y[i];
+    }
+
+    // compute the eigenvalues
+    let eig = S.eigvalsh(UPLO::Upper).unwrap();
+
+    // find the lowest eigenvalue
+    let min_eig = eig.iter().min_by(|&a, &b| a.total_cmp(b)).unwrap().clone();
+
+    println!("min_eig: {}", min_eig);
+    println!("y_sum: {}", y_sum);
+    println!("n: {}", n);
+
+    // return the dual bound
+    y_sum + min_eig * n
 }
 
 pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize) -> (Array1<f64>, f64){
