@@ -107,6 +107,10 @@ pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64
             g_i = g_i - v * &V.row(k);
         }
 
+        if g_i.norm_l2() == 0.0{
+            continue;
+        }
+
         // normalize g_i
         g_i /= g_i.norm_l2();
 

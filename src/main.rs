@@ -46,8 +46,8 @@ struct Args{
 }
 
 
-fn current_time() -> u128 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_micros()
+fn current_time() -> f64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
 }
 
 fn main() {

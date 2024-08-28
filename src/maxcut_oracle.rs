@@ -46,6 +46,18 @@ pub fn grad(Q: &CsMat<f64>, V:&Array2<f64>) -> Array2<f64>{
     2.0 * (Q * V)
 }
 
+pub fn dual_variables(Q: &CsMat<f64>, V: &Array2<f64>) -> Array1<f64>{
+
+    // based on equation 8 of https://arxiv.org/pdf/0807.4423
+    let mut dual = Array1::<f64>::zeros(Q.shape().0);
+    let G = -(Q * V);
+    for i in 0..Q.shape().0{
+        dual[i] = G.row(i).dot(&V.row(i));
+    }
+
+    dual
+}
+
 pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize) -> (Array1<f64>, f64){
 
     let mut prng = PRNG {
