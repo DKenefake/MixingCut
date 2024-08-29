@@ -1,5 +1,5 @@
 use ndarray::{Array1, Array2};
-use ndarray_linalg::{EigValsh, Norm, UPLO};
+use ndarray_linalg::{Eigh, EigValsh, Norm, UPLO};
 use smolprng::{JsfLarge, PRNG};
 use sprs::CsMat;
 
@@ -19,7 +19,7 @@ pub fn obj(Q: &CsMat<f64>, V:&Array2<f64>) -> f64{
         if i == j{
             trace += q_ij * V.row(i).dot(&V.row(j));
         }
-        else{
+        if i < j{
             trace += 2.0 * q_ij * V.row(i).dot(&V.row(j));
         }
     }
@@ -34,7 +34,7 @@ pub fn obj_rounded(Q: &CsMat<f64>, x_0: &Array1<f64>) -> f64{
         if i == j{
             trace += q_ij * x_0[i] * x_0[i];
         }
-        else{
+        if i < j{
             trace += 2.0 * q_ij * x_0[i] * x_0[j];
         }
     }
@@ -52,7 +52,7 @@ pub fn dual_variables(Q: &CsMat<f64>, V: &Array2<f64>) -> Array1<f64>{
     let mut dual = Array1::<f64>::zeros(Q.shape().0);
     let G = Q * V;
     for i in 0..Q.shape().0{
-        dual[i] = 2.0 * (G.row(i).dot(&V.row(i)));
+        dual[i] = G.row(i).dot(&V.row(i));
     }
 
     dual
@@ -66,19 +66,24 @@ pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64{
     let y_sum = y.iter().sum::<f64>();
     let mut S = Q.to_dense();
 
+    // for i in  0..Q.shape().0{
+    //     println!("y[{}] = {}", i, y[i]);
+    // }
+
     for i in 0..Q.shape().0{
-        S[[i, i]] -= y[i];
+        S[[i, i]] = S[[i,i]] - y[i];
     }
 
     // compute the eigenvalues
-    let eig = S.eigvalsh(UPLO::Upper).unwrap();
+    let (eigs, _) = S.eigh(UPLO::Upper).unwrap();
 
     // find the lowest eigenvalue
-    let min_eig = eig.iter().min_by(|&a, &b| a.total_cmp(b)).unwrap().clone();
+    let min_eig = eigs.iter().fold(f64::INFINITY, |acc, &x| x.min(acc));
 
-    println!("min_eig: {}", min_eig);
-    println!("y_sum: {}", y_sum);
-    println!("n: {}", n);
+    // println!("min_eig: {}", min_eig);
+    // println!("y_sum: {}", y_sum);
+    // println!("n: {}", n);
+    // println!("dual bound: {}", y_sum + min_eig * n);
 
     // return the dual bound
     y_sum + min_eig * n

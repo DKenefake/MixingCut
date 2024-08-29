@@ -130,7 +130,7 @@ fn main() {
     }
 
     // compute the rounded solution
-    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 10);
+    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 1000);
 
     // print the rounded solution
     println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
