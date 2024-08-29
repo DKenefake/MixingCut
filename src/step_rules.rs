@@ -34,25 +34,25 @@ pub fn apply_step(Q: &CsMat<f64>, V: Array2<f64>, step_rule: StepRule) -> Array2
 
 pub fn make_step(Q: &CsMat<f64>, V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
     // compute gradient
-    let grad = grad(&Q, &V);
+    let grad = grad(Q, &V);
     // take gradient step and project
     sdp_project::project(V - alpha_safe * grad)
 }
 
 pub fn make_step_adv(Q: &CsMat<f64>, V: Array2<f64>, alpha_safe: f64 ) -> Array2<f64>{
     // compute gradient
-    let grad = grad(&Q, &V);
+    let grad = grad(Q, &V);
 
     // take the objective value at f(alpha = 0), f(alpha = alpha_safe), f(alpha = -alpha_safe)
-    let f_0 = obj(&Q, &V);
-    let x = obj(&Q, &(&V + alpha_safe * &grad)) - f_0;
-    let y = obj(&Q, &(&V - alpha_safe * &grad)) - f_0;
+    let f_0 = obj(Q, &V);
+    let x = obj(Q, &(&V + alpha_safe * &grad)) - f_0;
+    let y = obj(Q, &(&V - alpha_safe * &grad)) - f_0;
 
     // compute the step size based on the quadratic approximation
     let mut alpha = (0.5*(y - x)* alpha_safe)/(x + y);
 
     // take a step
-    let proposed_step_val = obj(&Q, &(&V - alpha * &grad));
+    let proposed_step_val = obj(Q, &(&V - alpha * &grad));
 
     // if the step is not a descent, take the safe step size
     if proposed_step_val > f_0{

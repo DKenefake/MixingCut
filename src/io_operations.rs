@@ -46,7 +46,7 @@ pub(crate) fn read_graph_matrix(path: &str, index_correction: usize) -> CsMat<f6
     q.to_csr()
 }
 
-pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f64, obj_relaxed:f64) -> () {
+pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f64, obj_relaxed:f64) {
 
     // open the file and create a writer
     let file = std::fs::File::create(path).unwrap();
@@ -60,7 +60,7 @@ pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f
 
 
     // write the solution vector
-    for (_, &x) in x_0.iter().enumerate(){
+    for &x in x_0.iter(){
         writeln!(writer, "{}", x).unwrap();
     }
 

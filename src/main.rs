@@ -46,6 +46,10 @@ struct Args{
     // compute dual bound
     #[clap(short, long, default_value = "0")]
     dual_bound: usize,
+
+    // verbosity
+    #[clap(short, long, default_value = "1")]
+    verbose: usize
 }
 
 
@@ -79,6 +83,17 @@ fn main() {
     // read in the number of iterations
     let max_iters = args.max_iters;
 
+    // get verbosity
+    let verbose = args.verbose;
+
+    // print the mixing cut vanity header if verbose
+    if verbose == 1{
+        println!("------------------------------------------------------------------
+	     MixingCut v3.2.4 - MAX CUT SDP Solver
+	(c) Dustin Kenefake, Texas A&M University, 2024
+------------------------------------------------------------------");
+    }
+
     // set up the rank size of the problem
     let k = match args.rank {
         0 => 2 * (n as f64).log2() as usize,
@@ -89,18 +104,19 @@ fn main() {
     // generate random initial point
     let mut V = make_random_matrix(n, k);
 
-    // print problem statistics
-    println!("Size of Q {:?}", Q.shape());
-    println!("NNZ(Q) {:?}", Q.nnz());
-    println!("Q norm {:?}", Q_norm);
-    println!("Size of V {:?}", V.shape());
+    // print problem statistics if verbose
+    if verbose == 1{
+        println!("Size of Q {:?}", Q.shape());
+        println!("NNZ(Q) {:?}", Q.nnz());
+        println!("Q norm {:?}", Q_norm);
+        println!("Size of V {:?}", V.shape());
+    }
 
     // get current time
     let start = current_time();
 
+    // get the objective value
     let mut obj_val = obj(&Q, &V);
-
-
 
     // iterate over the number of iterations
     for i in 0..max_iters{
@@ -111,20 +127,26 @@ fn main() {
         // compute the objective value
         let new_obj_val = obj(&Q, &V);
 
+        // if the objective value is not changing, break
         if (new_obj_val - obj_val).abs()  < args.tolerance{
-            println!("{} {} {}" , i, obj(&Q, &V), current_time() - start);
+            if verbose == 1 {
+                println!("{} {} {}", i, obj(&Q, &V), current_time() - start);
+            }
             break;
         }
 
+        // if the objective value is increasing, break
         if new_obj_val > obj_val{
-            println!("Objective value is not decreasing");
+            if verbose == 1{
+                println!("Objective value is increasing");
+            }
             break;
         }
 
         obj_val = new_obj_val;
 
         // every 100 iterations, print the objective value
-        if i % 1 == 0{
+        if verbose == 1 && i % 10 == 0{
             println!("{} {} {}" , i, obj_val, current_time() - start);
         }
     }
@@ -132,13 +154,17 @@ fn main() {
     // compute the rounded solution
     let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 1000);
 
-    // print the rounded solution
-    println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
+    if verbose == 1{
+        // print the rounded solution
+        println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
+    }
 
     // print the dual bound
     if args.dual_bound == 1{
         let dual_bound = maxcut_oracle::dual_bound(&Q, &V);
-        println!("Dual bound: {:?}", dual_bound);
+        if verbose == 1{
+            println!("Dual bound: {:?}", dual_bound);
+        }
     }
 
     // write the solution to a file
