@@ -14,7 +14,7 @@ $$
 The solver can be used via the command line with the following interface:
 
 ```bash
-./mixingcut --input-path <input_file> --output-path <output_file> -rank <rank> --tolerance <tolerance> --max-iters <max_iter> --index-correction <index-correction> --step-rule <step_rule>
+./mixingcut --input-path <input_file> --output-path <output_file> -rank <rank> --tolerance <tolerance> --max-iters <max_iter> --index-correction <index-correction> --step-rule <step_rule> --dual-bound <dual_bound>
 ```
 
 Where:
@@ -25,7 +25,7 @@ Where:
 - `<max_iter>` is the maximum number of iterations. Default is ``1000``.
 - `<step_rule>` is the update rule for the mixing cut algorithm. Default is ``coord_no_step``. Options are ``grad``, ``grad_adv``, ``coord`` and ``coord_no_step``.
 - `<index_correction>` is a for reading the input graph file, if the vertices are 0-indexed or 1-indexed. Default is ``1``.
-
+- `<dual_bound>` is the flag for computing the dual bound for the SDP relaxation. Default is ``0``. A value of ``1`` will compute the dual bound (this is an expensive(non computable) operation for large(huge) instances).
 However, only the input file is required. The solver will use the default values for the other parameters if not specified in the command line with the following command:
 
 ```bash
