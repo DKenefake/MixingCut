@@ -106,11 +106,16 @@ fn main() {
 
     // print problem statistics if verbose
     if verbose == 1{
-        println!("Size of Q {:?}", Q.shape());
-        println!("NNZ(Q) {:?}", Q.nnz());
-        println!("Q norm {:?}", Q_norm);
-        println!("Size of V {:?}", V.shape());
-        println!("------------------------------------------------------------------")
+        println!("Problem Statistics:");
+        println!("Size of Q {} {}", n, n);
+        println!("NNZ(Q) {}", Q.nnz());
+        println!("Q norm {}", Q_norm);
+        println!("Rank {}", k);
+        println!("------------------------------------------------------------------");
+        println!(
+            "{0: <20} | {1: <20} | {2: <20}",
+            "Iteration", "Primal Value", "Time(sec)"
+        );
     }
 
     // get current time
@@ -131,7 +136,10 @@ fn main() {
         // if the objective value is not changing, break
         if (new_obj_val - obj_val).abs()  < args.tolerance{
             if verbose == 1 {
-                println!("{} {} {}", i, obj(&Q, &V), current_time() - start);
+                println!(
+                    "{0: <20} | {1: <20} | {2: <20.6}",
+                    i, obj(&Q, &V), current_time() - start
+                );
             }
             break;
         }
@@ -148,7 +156,10 @@ fn main() {
 
         // every 10 iterations, print the objective value
         if verbose == 1 && i % 10 == 0{
-            println!("{} {} {}" , i, obj_val, current_time() - start);
+            println!(
+                "{0: <20} | {1: <20} | {2: <20.6}",
+                i, obj(&Q, &V), current_time() - start
+            );
         }
     }
 
