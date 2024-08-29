@@ -89,7 +89,7 @@ fn main() {
     // print the mixing cut vanity header if verbose
     if verbose == 1{
         println!("------------------------------------------------------------------
-	     MixingCut v3.2.4 - MAX CUT SDP Solver
+	     MixingCut v0.0.1 - MAX CUT SDP Solver
 	(c) Dustin Kenefake, Texas A&M University, 2024
 ------------------------------------------------------------------");
     }
@@ -110,6 +110,7 @@ fn main() {
         println!("NNZ(Q) {:?}", Q.nnz());
         println!("Q norm {:?}", Q_norm);
         println!("Size of V {:?}", V.shape());
+        println!("------------------------------------------------------------------")
     }
 
     // get current time
@@ -145,10 +146,14 @@ fn main() {
 
         obj_val = new_obj_val;
 
-        // every 100 iterations, print the objective value
+        // every 10 iterations, print the objective value
         if verbose == 1 && i % 10 == 0{
             println!("{} {} {}" , i, obj_val, current_time() - start);
         }
+    }
+
+    if verbose == 1{
+        println!("------------------------------------------------------------------")
     }
 
     // compute the rounded solution
