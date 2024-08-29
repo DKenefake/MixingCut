@@ -2,6 +2,14 @@
 name = "mixingcut"
 version = "0.1.0"
 edition = "2021"
+authors = ["Dustin Kenefake <dustin.kenefake@tamu.edu>"]
+license = "BSD-3"
+description = "A program to solve the MAXCUT SDP Relaxation."
+readme = "README.md"
+homepage = "https://github.com/DKenefake/MixingCut/"
+repository = "https://github.com/DKenefake/MixingCut/"
+keywords = ["optimization", "SDP", "graph"]
+categories = ["command-line-utilities", "mathematics", "science"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -17,4 +25,9 @@ lto = true
 opt-level = 3
 codegen-units = 1
 incremental = false
-target-cpu = "native"
+
+[profile.release]
+lto = true
+opt-level = 3
+codegen-units = 1
+incremental = false

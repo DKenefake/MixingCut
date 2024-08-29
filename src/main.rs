@@ -88,10 +88,10 @@ fn main() {
 
     // print the mixing cut vanity header if verbose
     if verbose == 1{
-        println!("------------------------------------------------------------------
-	     MixingCut v0.0.1 - MAX CUT SDP Solver
-	(c) Dustin Kenefake, Texas A&M University, 2024
-------------------------------------------------------------------");
+        println!("------------------------------------------------------------------");
+        println!("               MixingCut v0.0.1 - MAX CUT SDP Solver              ");
+        println!("         (c) Dustin Kenefake, Texas A&M University, 2024          ");
+        println!("------------------------------------------------------------------");
     }
 
     // set up the rank size of the problem
