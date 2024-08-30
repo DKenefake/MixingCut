@@ -24,7 +24,8 @@ The solver can be used via the command line with the following interface:
     --index-correction <index-correction> \
     --step-rule <step_rule> \
     --dual-bound <dual_bound> \
-    --verbose <verbose> 
+    --verbose <verbose> \
+    --rounding-iters <rounding_iters>
 ```
 
 Where:
@@ -42,6 +43,7 @@ Where:
 - `<dual_bound>` is the flag for computing the dual bound for the SDP relaxation. Default is ``0``. A value of ``1`` 
   will compute the dual bound (this is an expensive(non computable) operation for large(huge) instances).  
 - `<verbose>` is the flag for printing the output to the console. Default is ``1``. To disable output set to ``0``.
+- `<rounding_iters>` is the number of iterations for the rounding algorithm. Default is ``1000``.
 
 However, only the input file is required. The solver will use the default values for the other parameters if not 
 specified in the command line with the following command: 

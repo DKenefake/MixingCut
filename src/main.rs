@@ -49,7 +49,11 @@ struct Args{
 
     // verbosity
     #[clap(short, long, default_value = "1")]
-    verbose: usize
+    verbose: usize,
+
+    // rounding iters
+    #[clap(short, long, default_value = "1000")]
+    rounding_iters: usize
 }
 
 
@@ -59,31 +63,24 @@ fn current_time() -> f64 {
 
 fn main() {
 
-    // parse the arguments
     let args: Args = Args::parse();
 
-    // find the index correction
     let index_correction = args.index_correction;
 
     // read in the graph
     let Q = io_operations::read_graph_matrix(&args.input_path, index_correction);
 
-    // get the norm of Q
     let Q_norm = get_Q_norm(&Q);
 
     // compute the safe step size
     let alpha_safe = 1.0 / Q_norm;
 
-    // get the size of the problem
     let n = Q.shape().0;
 
-    // generate the step rule from the argument
     let step_rule = generate_step_rule(&args.step_rule, alpha_safe);
 
-    // read in the number of iterations
     let max_iters = args.max_iters;
 
-    // get verbosity
     let verbose = args.verbose;
 
     // print the mixing cut vanity header if verbose
@@ -154,7 +151,7 @@ fn main() {
 
         obj_val = new_obj_val;
 
-        // every 10 iterations, print the objective value
+        // every 10 iterations, print the objective value if verbose
         if verbose == 1 && i % 10 == 0{
             println!(
                 "{0: <20} | {1: <20} | {2: <20.6}",
@@ -168,7 +165,7 @@ fn main() {
     }
 
     // compute the rounded solution
-    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, 1000);
+    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, args.rounding_iters);
 
     if verbose == 1{
         // print the rounded solution
