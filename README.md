@@ -15,7 +15,16 @@ $$
 The solver can be used via the command line with the following interface:
 
 ```bash
-./mixingcut --input-path <input_file> --output-path <output_file> -rank <rank> --tolerance <tolerance> --max-iters <max_iter> --index-correction <index-correction> --step-rule <step_rule> --dual-bound <dual_bound> --verbose <verbose> 
+./mixingcut \
+    --input-path <input_file> \
+    --output-path <output_file> \
+    --rank <rank> \
+    --tolerance <tolerance> \
+    --max-iters <max_iter> \
+    --index-correction <index-correction> \
+    --step-rule <step_rule> \
+    --dual-bound <dual_bound> \
+    --verbose <verbose> 
 ```
 
 Where:
