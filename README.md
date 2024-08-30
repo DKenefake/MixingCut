@@ -78,7 +78,7 @@ x_{n-1}
 
 # More Info 
 
-The MixingCut Solver is based on the ideas proposed by the following paper:
+The MixingCut is based on the ideas proposed by the following paper:
 
 ```bibtex
 @article{wang2017mixing,
