@@ -78,7 +78,7 @@ x_{n-1}
 
 # More Info 
 
-The MixingCut is based on the ideas proposed by the following paper:
+MixingCut is based on the ideas proposed by the following paper:
 
 ```bibtex
 @article{wang2017mixing,
