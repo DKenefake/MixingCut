@@ -65,7 +65,7 @@ i_m j_m q_{i_m,j_m}
 
 # Output File Format
 The solver writes a rounded solution to a file in the following format: Where ``obj_sdp`` is the value of the 
-SDP relaxation,``obj_rounded_sol`` is the value of the rounded solution and `x_i` is the value of the vertex `i`. 
+SDP relaxation, ``obj_rounded_sol`` is the value of the rounded solution and `x_i` is the value of the vertex `i`. 
 
 ```
 obj_sdp
