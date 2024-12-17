@@ -5,6 +5,7 @@ mod sdp_project;
 mod step_rules;
 mod maxcut_oracle;
 mod initialize;
+mod sdp_local_search;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 use clap::Parser;
@@ -172,7 +173,14 @@ fn main() {
 
     if verbose == 1{
         // print the rounded solution
-        println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
+        println!("Rounded solution: {:?} {:?}", obj_rounded, x_0.clone());
+
+        // use beam search to generate better solutions
+        let rounded_sols = vec![x_0.clone()];
+
+        let (best_obj, best_sol) = sdp_local_search::beam_search(&Q, 128, rounded_sols);
+
+        println!("Rounded solution with local search: {:?} {:?}", best_obj, best_sol);
     }
 
     // print the dual bound

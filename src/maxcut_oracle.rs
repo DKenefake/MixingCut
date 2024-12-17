@@ -69,6 +69,8 @@ pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64{
     let y = dual_variables(Q, V);
     let y_sum = y.iter().sum::<f64>();
 
+    println!("y_sum: {}\n", y_sum);
+
     // start the S matrix from the dense version of Q
     let mut S = Q.to_dense();
 
@@ -124,4 +126,36 @@ pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize)
 
     // return the best solution and its objective value
     (best_sol, best_obj)
+}
+
+pub(crate) fn compute_rounded_sols(V: &Array2<f64>, k: usize) -> Vec<Array1<f64>>{
+
+    // instantiate a PRNG
+    let mut prng = PRNG {
+        generator: JsfLarge::default(),
+    };
+
+    let mut rounded_sols = Vec::new();
+
+
+    // create scratch space for the rounded solution and random arrays we are making
+    let mut x_scratch = Array1::zeros(V.shape()[0]);
+    let mut r_scratch = Array1::zeros(V.shape()[1]);
+
+    for _ in 0..k{
+
+        // generate a random vector on the n sphere
+        r_scratch.mapv_inplace(|_| prng.normal());
+        r_scratch /= r_scratch.norm_l2();
+
+        // compute the rounded solution
+        x_scratch.assign(&V.dot(&r_scratch));
+        x_scratch.mapv_inplace(|x| if x > 0.0 {1.0} else {-1.0});
+
+        // push the rounded solution to the vector
+        rounded_sols.push(x_scratch.clone());
+    }
+
+    // return the best solution and its objective value
+    rounded_sols
 }
