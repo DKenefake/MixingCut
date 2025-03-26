@@ -1,6 +1,9 @@
 use ndarray::{Array1};
 use sprs::{CsMat};
 use crate::maxcut_oracle;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+
 
 pub fn get_improving_children(x_0: &Array1<f64>, Q: &CsMat<f64>) -> Vec<(f64, Array1<f64>)> {
 
@@ -55,7 +58,7 @@ pub fn beam_search(Q: &CsMat<f64>, beta: usize, candidates: Vec<Array1<f64>>) ->
             }
         }
 
-        beam_candidates = beam_candidates.iter().flat_map(|(_, x)| get_improving_children(x, Q)).collect();
+        beam_candidates = beam_candidates.par_iter().flat_map(|(_, x)| get_improving_children(x, Q)).collect();
 
         println!("Beam search: {:?}", beam_candidates.len());
 
