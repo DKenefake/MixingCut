@@ -6,6 +6,8 @@ mod step_rules;
 mod maxcut_oracle;
 mod initialize;
 
+mod sdp_local_search;
+
 use std::time::{SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use crate::initialize::make_random_matrix;
@@ -52,8 +54,9 @@ struct Args{
     verbose: usize,
 
     // rounding iters
-    #[clap(short, long, default_value = "1000")]
+    #[clap(long, default_value = "1000")]
     rounding_iters: usize
+
 }
 
 
@@ -82,6 +85,8 @@ fn main() {
     let max_iters = args.max_iters;
 
     let verbose = args.verbose;
+
+    let max_rounding_iters = args.rounding_iters;
 
     // print the mixing cut vanity header if verbose
     if verbose == 1{
@@ -165,11 +170,18 @@ fn main() {
     }
 
     // compute the rounded solution
-    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, args.rounding_iters);
+    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, max_rounding_iters);
 
     if verbose == 1{
         // print the rounded solution
-        println!("Rounded solution: {:?} {:?}", obj_rounded, x_0);
+        println!("Rounded solution: {:?} {:?}", obj_rounded, x_0.clone());
+
+        // use beam search to generate better solutions
+        let rounded_sols = vec![x_0.clone()];
+
+        let (best_obj, best_sol) = sdp_local_search::beam_search(&Q, 128, rounded_sols);
+
+        println!("Rounded solution with local search: {:?} {:?}", best_obj, best_sol);
     }
 
     // print the dual bound
