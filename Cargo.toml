@@ -15,8 +15,8 @@ categories = ["command-line-utilities", "mathematics", "science"]
 
 [dependencies]
 sprs = "0.11.1"
-ndarray = "0.15.6"
-ndarray-linalg = { version = "0.16.0", features = ["intel-mkl-static"] }
+ndarray = "0.16.1"
+ndarray-linalg = { version = "0.17.0", features = ["intel-mkl-static"] }
 smolprng = { version = "0.1.6", features = ["std"] }
 clap = { version = "4.5.16", features = ["derive"] }
 
