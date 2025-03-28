@@ -69,8 +69,6 @@ pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64{
     let y = dual_variables(Q, V);
     let y_sum = y.iter().sum::<f64>();
 
-    println!("y_sum: {}\n", y_sum);
-    
     // start the S matrix from the dense version of Q
     let mut S = Q.to_dense();
 

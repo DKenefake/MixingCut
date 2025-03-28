@@ -11,7 +11,7 @@ mod sdp_local_search;
 use std::time::{SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use crate::initialize::make_random_matrix;
-use crate::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj};
+use crate::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj, dual_variables};
 use crate::io_operations::write_solution_matrix;
 use crate::step_rules::generate_step_rule;
 
@@ -54,7 +54,7 @@ struct Args{
     verbose: usize,
 
     // rounding iters
-    #[clap(long, default_value = "1000")]
+    #[clap(long, default_value = "100")]
     rounding_iters: usize
 
 }
@@ -186,7 +186,9 @@ fn main() {
 
     // print the dual bound
     if args.dual_bound == 1{
+
         let dual_bound = maxcut_oracle::dual_bound(&Q, &V);
+
         if verbose == 1{
             println!("Dual bound: {:?}", dual_bound);
         }

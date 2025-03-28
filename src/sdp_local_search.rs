@@ -33,8 +33,8 @@ pub fn get_improving_children(x_0: &Array1<f64>, Q: &CsMat<f64>) -> Vec<(f64, Ar
 }
 
 pub fn beam_search(Q: &CsMat<f64>, beta: usize, candidates: Vec<Array1<f64>>) -> (f64, Array1<f64>) {
-    // modified beam search algorithm we are basically doing a more greedy version of beam search via
-    // hill climbing
+    // modified beam search algorithm we are basically doing a more greedy version of beam search
+    // where we are only considering the improving children of the current beam candidates
 
     let mut best_solution: Array1<f64> = Array1::<f64>::zeros(Q.shape().0);
     let mut best_obj = f64::INFINITY;
@@ -58,9 +58,8 @@ pub fn beam_search(Q: &CsMat<f64>, beta: usize, candidates: Vec<Array1<f64>>) ->
             }
         }
 
+        // get the children of the beam candidates
         beam_candidates = beam_candidates.par_iter().flat_map(|(_, x)| get_improving_children(x, Q)).collect();
-
-        println!("Beam search: {:?}", beam_candidates.len());
 
         // sort the beam candidates
         beam_candidates.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
@@ -68,7 +67,6 @@ pub fn beam_search(Q: &CsMat<f64>, beta: usize, candidates: Vec<Array1<f64>>) ->
         // select the best beta candidates
         beam_candidates = beam_candidates.iter().take(beta).map(|x| x.clone()).collect();
 
-        println!("Beam search obj: {:?}", best_obj);
     }
 
     (best_obj, best_solution)
