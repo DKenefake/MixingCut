@@ -1,5 +1,6 @@
 use ndarray::{Array1, Array2};
 use ndarray_linalg::{Eigh, Norm, UPLO};
+use rayon::iter::ParallelIterator;
 use smolprng::{JsfLarge, PRNG};
 use sprs::CsMat;
 
@@ -17,7 +18,7 @@ pub fn obj(Q: &CsMat<f64>, V:&Array2<f64>) -> f64{
 
     for (q_ij, (i, j)) in Q.iter() {
         if i == j{
-            trace += q_ij * V.row(i).dot(&V.row(j));
+            trace += q_ij;
         }
         if i < j{
             trace += 2.0 * q_ij * V.row(i).dot(&V.row(j));
@@ -28,18 +29,18 @@ pub fn obj(Q: &CsMat<f64>, V:&Array2<f64>) -> f64{
 }
 
 pub fn obj_rounded(Q: &CsMat<f64>, x_0: &Array1<f64>) -> f64{
-    let mut trace = 0.0;
 
-    for (q_ij, (i, j)) in Q.iter() {
-        if i == j{
-            trace += q_ij * x_0[i] * x_0[i];
+    Q.iter().map(|(q_ij, (i, j)): (&f64,(usize, usize))| -> f64 {
+        if i == j {
+            return *q_ij;
         }
-        if i < j{
-            trace += 2.0 * q_ij * x_0[i] * x_0[j];
+        if i < j {
+            2.0 * q_ij * x_0[i] * x_0[j]
+        } else {
+            0.0
         }
-    }
+    }).sum()
 
-    trace
 }
 
 pub fn grad(Q: &CsMat<f64>, V:&Array2<f64>) -> Array2<f64>{

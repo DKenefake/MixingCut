@@ -11,7 +11,7 @@ mod sdp_local_search;
 use std::time::{SystemTime, UNIX_EPOCH};
 use clap::Parser;
 use crate::initialize::make_random_matrix;
-use crate::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj, dual_variables};
+use crate::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj};
 use crate::io_operations::write_solution_matrix;
 use crate::step_rules::generate_step_rule;
 
@@ -55,8 +55,11 @@ struct Args{
 
     // rounding iters
     #[clap(long, default_value = "100")]
-    rounding_iters: usize
+    rounding_iters: usize,
 
+    // beam search width
+    #[clap(long, default_value = "128")]
+    beam_width: usize
 }
 
 
@@ -140,7 +143,7 @@ fn main() {
             if verbose == 1 {
                 println!(
                     "{0: <20} | {1: <20} | {2: <20.6}",
-                    i, obj(&Q, &V), current_time() - start
+                    i, new_obj_val, current_time() - start
                 );
             }
             break;
@@ -160,7 +163,7 @@ fn main() {
         if verbose == 1 && i % 10 == 0{
             println!(
                 "{0: <20} | {1: <20} | {2: <20.6}",
-                i, obj(&Q, &V), current_time() - start
+                i, obj_val, current_time() - start
             );
         }
     }
@@ -179,7 +182,7 @@ fn main() {
         // use beam search to generate better solutions
         let rounded_sols = vec![x_0.clone()];
 
-        let (best_obj, best_sol) = sdp_local_search::beam_search(&Q, 128, rounded_sols);
+        let (best_obj, best_sol) = sdp_local_search::beam_search(&Q, args.beam_width, rounded_sols);
 
         println!("Rounded solution with local search: {:?} {:?}", best_obj, best_sol);
     }

@@ -118,7 +118,7 @@ pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64
         V.row_mut(i).assign(&g_i);
 
         // zero out g_i
-        g_i.mapv_inplace(|_| 0.0);
+        g_i = 0.0 * g_i;
     }
 
     V
