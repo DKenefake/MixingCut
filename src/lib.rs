@@ -10,3 +10,5 @@ pub mod step_rules;
 pub mod maxcut_oracle;
 
 pub mod io_operations;
+
+pub mod sdp_solver;

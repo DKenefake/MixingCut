@@ -101,7 +101,7 @@ fn main() {
     };
 
     // generate random initial point
-    let mut V = make_random_matrix(n, k);
+    let mut V = make_random_matrix(n, k, None);
 
     // print problem statistics if verbose
     if verbose == 1 {
