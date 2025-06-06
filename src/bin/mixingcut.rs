@@ -1,23 +1,16 @@
 #![allow(non_snake_case)] // reasoning: The code is based on linear algebra notation (X is a matrix, x is a vector)
 
-mod io_operations;
-mod sdp_project;
-mod step_rules;
-mod maxcut_oracle;
-mod initialize;
-
-mod sdp_local_search;
-
-use std::time::{SystemTime, UNIX_EPOCH};
 use clap::Parser;
-use crate::initialize::make_random_matrix;
-use crate::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj};
-use crate::io_operations::write_solution_matrix;
-use crate::step_rules::generate_step_rule;
+use mixingcut::initialize::make_random_matrix;
+use mixingcut::io_operations::write_solution_matrix;
+use mixingcut::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj};
+use mixingcut::step_rules::generate_step_rule;
+use mixingcut::{io_operations, maxcut_oracle, sdp_local_search, step_rules};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
-struct Args{
+struct Args {
     // Name of the input file
     #[clap(short, long)]
     input_path: String,
@@ -59,16 +52,17 @@ struct Args{
 
     // beam search width
     #[clap(long, default_value = "128")]
-    beam_width: usize
+    beam_width: usize,
 }
 
-
 fn current_time() -> f64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs_f64()
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs_f64()
 }
 
 fn main() {
-
     let args: Args = Args::parse();
 
     let index_correction = args.index_correction;
@@ -92,7 +86,7 @@ fn main() {
     let max_rounding_iters = args.rounding_iters;
 
     // print the mixing cut vanity header if verbose
-    if verbose == 1{
+    if verbose == 1 {
         println!("------------------------------------------------------------------");
         println!("               MixingCut v0.0.1 - MAX CUT SDP Solver              ");
         println!("         (c) Dustin Kenefake, Texas A&M University, 2024          ");
@@ -110,7 +104,7 @@ fn main() {
     let mut V = make_random_matrix(n, k);
 
     // print problem statistics if verbose
-    if verbose == 1{
+    if verbose == 1 {
         println!("Problem Statistics:");
         println!("Size of Q {} {}", n, n);
         println!("NNZ(Q) {}", Q.nnz());
@@ -130,8 +124,7 @@ fn main() {
     let mut obj_val = obj(&Q, &V);
 
     // iterate over the number of iterations
-    for i in 0..max_iters{
-
+    for i in 0..max_iters {
         // apply the step rule
         V = step_rules::apply_step(&Q, V, step_rule);
 
@@ -139,19 +132,21 @@ fn main() {
         let new_obj_val = obj(&Q, &V);
 
         // if the objective value is not changing, break
-        if (new_obj_val - obj_val).abs()  < args.tolerance{
+        if (new_obj_val - obj_val).abs() < args.tolerance {
             if verbose == 1 {
                 println!(
                     "{0: <20} | {1: <20} | {2: <20.6}",
-                    i, new_obj_val, current_time() - start
+                    i,
+                    new_obj_val,
+                    current_time() - start
                 );
             }
             break;
         }
 
         // if the objective value is increasing, break
-        if new_obj_val > obj_val{
-            if verbose == 1{
+        if new_obj_val > obj_val {
+            if verbose == 1 {
                 println!("Objective value is increasing");
             }
             break;
@@ -160,22 +155,24 @@ fn main() {
         obj_val = new_obj_val;
 
         // every 10 iterations, print the objective value if verbose
-        if verbose == 1 && i % 10 == 0{
+        if verbose == 1 && i % 10 == 0 {
             println!(
                 "{0: <20} | {1: <20} | {2: <20.6}",
-                i, obj_val, current_time() - start
+                i,
+                obj_val,
+                current_time() - start
             );
         }
     }
 
-    if verbose == 1{
+    if verbose == 1 {
         println!("------------------------------------------------------------------")
     }
 
     // compute the rounded solution
     let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, max_rounding_iters);
 
-    if verbose == 1{
+    if verbose == 1 {
         // print the rounded solution
         println!("Rounded solution: {:?} {:?}", obj_rounded, x_0.clone());
 
@@ -184,20 +181,21 @@ fn main() {
 
         let (best_obj, best_sol) = sdp_local_search::beam_search(&Q, args.beam_width, rounded_sols);
 
-        println!("Rounded solution with local search: {:?} {:?}", best_obj, best_sol);
+        println!(
+            "Rounded solution with local search: {:?} {:?}",
+            best_obj, best_sol
+        );
     }
 
     // print the dual bound
-    if args.dual_bound == 1{
-
+    if args.dual_bound == 1 {
         let dual_bound = maxcut_oracle::dual_bound(&Q, &V);
 
-        if verbose == 1{
+        if verbose == 1 {
             println!("Dual bound: {:?}", dual_bound);
         }
     }
 
     // write the solution to a file
     write_solution_matrix(&args.output_path, x_0, obj_rounded, obj(&Q, &V));
-
 }

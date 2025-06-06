@@ -1,6 +1,5 @@
 use ndarray::{Array1, Array2};
 use ndarray_linalg::{Eigh, Norm, UPLO};
-use rayon::iter::ParallelIterator;
 use smolprng::{JsfLarge, PRNG};
 use sprs::CsMat;
 
@@ -10,17 +9,17 @@ pub fn get_Q_norm(Q: &CsMat<f64>) -> f64 {
     for (q_ij, (i, _)) in Q.iter() {
         c[i] += q_ij.abs();
     }
-    c.iter().max_by(|&a, &b| a.total_cmp(b)).unwrap().clone()
+    *c.iter().max_by(|&a, &b| a.total_cmp(b)).unwrap()
 }
 
-pub fn obj(Q: &CsMat<f64>, V:&Array2<f64>) -> f64{
+pub fn obj(Q: &CsMat<f64>, V: &Array2<f64>) -> f64 {
     let mut trace = 0.0;
 
     for (q_ij, (i, j)) in Q.iter() {
-        if i == j{
+        if i == j {
             trace += q_ij;
         }
-        if i < j{
+        if i < j {
             trace += 2.0 * q_ij * V.row(i).dot(&V.row(j));
         }
     }
@@ -28,42 +27,50 @@ pub fn obj(Q: &CsMat<f64>, V:&Array2<f64>) -> f64{
     trace
 }
 
-pub fn obj_rounded(Q: &CsMat<f64>, x_0: &Array1<f64>) -> f64{
-
-    Q.iter().map(|(q_ij, (i, j)): (&f64,(usize, usize))| -> f64 {
-        if i == j {
-            return *q_ij;
-        }
-        if i < j {
-            2.0 * q_ij * x_0[i] * x_0[j]
-        } else {
-            0.0
-        }
-    }).sum()
-
+pub fn obj_rounded(Q: &CsMat<f64>, x_0: &Array1<f64>) -> f64 {
+    Q.iter()
+        .map(|(q_ij, (i, j)): (&f64, (usize, usize))| -> f64 {
+            if i == j {
+                return *q_ij;
+            }
+            if i < j {
+                2.0 * q_ij * x_0[i] * x_0[j]
+            } else {
+                0.0
+            }
+        })
+        .sum()
 }
 
-pub fn grad(Q: &CsMat<f64>, V:&Array2<f64>) -> Array2<f64>{
+pub fn grad(Q: &CsMat<f64>, V: &Array2<f64>) -> Array2<f64> {
     2.0 * (Q * V)
 }
 
-pub fn dual_variables(Q: &CsMat<f64>, V: &Array2<f64>) -> Array1<f64>{
-
+pub fn dual_variables(Q: &CsMat<f64>, V: &Array2<f64>) -> Array1<f64> {
     // based on equation 8 of https://arxiv.org/pdf/0807.4423, much more efficient than the naive implementation
     // l_i = tr(V.T* E_ii * X * V)/ tr(V.T*E_ii*E_ii*V)
     let mut dual = Array1::<f64>::zeros(Q.shape().0);
 
     let G = Q * V;
 
-    for i in 0..Q.shape().0{
+    for i in 0..Q.shape().0 {
         dual[i] = G.row(i).dot(&V.row(i));
     }
 
     dual
 }
 
+pub fn dual_variables_with_QV(QV: &Array2<f64>, V: &Array2<f64>) -> Array1<f64> {
+    let mut dual = Array1::<f64>::zeros(QV.shape()[0]);
 
-pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64{
+    for i in 0..QV.shape()[0] {
+        dual[i] = QV.row(i).dot(&V.row(i));
+    }
+
+    dual
+}
+
+pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64 {
     // this is very expensive to compute O(n^3) no matter what
 
     let n = Q.shape().0 as f64;
@@ -74,7 +81,7 @@ pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64{
     let mut S = Q.to_dense();
 
     // subtract the dual variables from the diagonal
-    for i in 0..Q.shape().0{
+    for i in 0..Q.shape().0 {
         S[[i, i]] -= y[i];
     }
 
@@ -85,11 +92,10 @@ pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64{
     let min_eig = eigs.iter().fold(f64::INFINITY, |acc, &x| x.min(acc));
 
     // return the dual bound
-    y_sum + min_eig * n
+    min_eig.mul_add(n, y_sum)
 }
 
-pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize) -> (Array1<f64>, f64){
-
+pub fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize) -> (Array1<f64>, f64) {
     // instantiate a PRNG
     let mut prng = PRNG {
         generator: JsfLarge::default(),
@@ -103,21 +109,20 @@ pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize)
     let mut x_scratch = Array1::zeros(V.shape()[0]);
     let mut r_scratch = Array1::zeros(V.shape()[1]);
 
-    for _ in 0..iters{
-
+    for _ in 0..iters {
         // generate a random vector on the n sphere
         r_scratch.mapv_inplace(|_| prng.normal());
         r_scratch /= r_scratch.norm_l2();
 
         // compute the rounded solution
         x_scratch.assign(&V.dot(&r_scratch));
-        x_scratch.mapv_inplace(|x| if x > 0.0 {1.0} else {-1.0});
+        x_scratch.mapv_inplace(|x| if x > 0.0 { 1.0 } else { -1.0 });
 
         // compute the objective value
         let obj_rounded = obj_rounded(Q, &x_scratch);
 
         // if this is a better solution than the best solution (so far), update the best solution
-        if obj_rounded < best_obj{
+        if obj_rounded < best_obj {
             best_obj = obj_rounded;
             best_sol.assign(&x_scratch);
         }
@@ -127,8 +132,7 @@ pub(crate) fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize)
     (best_sol, best_obj)
 }
 
-pub(crate) fn compute_rounded_sols(V: &Array2<f64>, k: usize) -> Vec<Array1<f64>>{
-
+pub(crate) fn compute_rounded_sols(V: &Array2<f64>, k: usize) -> Vec<Array1<f64>> {
     // instantiate a PRNG
     let mut prng = PRNG {
         generator: JsfLarge::default(),
@@ -136,20 +140,18 @@ pub(crate) fn compute_rounded_sols(V: &Array2<f64>, k: usize) -> Vec<Array1<f64>
 
     let mut rounded_sols = Vec::new();
 
-
     // create scratch space for the rounded solution and random arrays we are making
     let mut x_scratch = Array1::zeros(V.shape()[0]);
     let mut r_scratch = Array1::zeros(V.shape()[1]);
 
-    for _ in 0..k{
-
+    for _ in 0..k {
         // generate a random vector on the n sphere
         r_scratch.mapv_inplace(|_| prng.normal());
         r_scratch /= r_scratch.norm_l2();
 
         // compute the rounded solution
         x_scratch.assign(&V.dot(&r_scratch));
-        x_scratch.mapv_inplace(|x| if x > 0.0 {1.0} else {-1.0});
+        x_scratch.mapv_inplace(|x| if x > 0.0 { 1.0 } else { -1.0 });
 
         // push the rounded solution to the vector
         rounded_sols.push(x_scratch.clone());

@@ -1,9 +1,8 @@
+use crate::sdp_project;
 use ndarray::Array2;
 use smolprng::{JsfLarge, PRNG};
-use crate::sdp_project;
 
-pub fn make_random_matrix(n:usize, k:usize) -> Array2<f64>{
-
+pub fn make_random_matrix(n: usize, k: usize) -> Array2<f64> {
     // generate a zeroed matrix V of size n x k
     let mut V = Array2::zeros((n, k));
 
@@ -13,8 +12,8 @@ pub fn make_random_matrix(n:usize, k:usize) -> Array2<f64>{
     };
 
     // fill V with random values
-    for i in 0..n{
-        for j in 0..k{
+    for i in 0..n {
+        for j in 0..k {
             V[[i, j]] = prng.normal();
         }
     }
@@ -22,4 +21,3 @@ pub fn make_random_matrix(n:usize, k:usize) -> Array2<f64>{
     // project V into the feasible space and return it
     sdp_project::project(V)
 }
-

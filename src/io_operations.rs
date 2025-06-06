@@ -4,8 +4,7 @@ use std::io::Write;
 use ndarray::Array1;
 use sprs::{CsMat, TriMat};
 
-pub(crate) fn read_graph_matrix(path: &str, index_correction: usize) -> CsMat<f64>{
-
+pub fn read_graph_matrix(path: &str, index_correction: usize) -> CsMat<f64> {
     // open the file and create a reader
     let file = std::fs::File::open(path).unwrap();
     let mut reader = std::io::BufReader::new(file);
@@ -25,16 +24,23 @@ pub(crate) fn read_graph_matrix(path: &str, index_correction: usize) -> CsMat<f6
     while reader.read_line(&mut line).unwrap() > 0 {
         let row_data: Vec<_> = line.split_whitespace().collect();
 
-        let (i, j , value) = match row_data.len(){
-            3 => (row_data[0].parse::<usize>().unwrap() - index_correction, row_data[1].parse::<usize>().unwrap() - index_correction, row_data[2].parse::<f64>().unwrap()),
-            2 => (row_data[0].parse::<usize>().unwrap() - index_correction, row_data[1].parse::<usize>().unwrap() - index_correction, 1.0),
-            _ => (0, 0, 0.0)
+        let (i, j, value) = match row_data.len() {
+            3 => (
+                row_data[0].parse::<usize>().unwrap() - index_correction,
+                row_data[1].parse::<usize>().unwrap() - index_correction,
+                row_data[2].parse::<f64>().unwrap(),
+            ),
+            2 => (
+                row_data[0].parse::<usize>().unwrap() - index_correction,
+                row_data[1].parse::<usize>().unwrap() - index_correction,
+                1.0,
+            ),
+            _ => (0, 0, 0.0),
         };
 
-        if i == j{
+        if i == j {
             q.add_triplet(i, j, value);
-        }
-        else{
+        } else {
             q.add_triplet(i, j, 0.5 * value);
             q.add_triplet(j, i, 0.5 * value);
         }
@@ -46,8 +52,7 @@ pub(crate) fn read_graph_matrix(path: &str, index_correction: usize) -> CsMat<f6
     q.to_csr()
 }
 
-pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f64, obj_relaxed:f64) {
-
+pub fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f64, obj_relaxed: f64) {
     // open the file and create a writer
     let file = std::fs::File::create(path).unwrap();
     let mut writer = std::io::BufWriter::new(file);
@@ -58,10 +63,8 @@ pub(crate) fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f
     // write the rounded objective value
     writeln!(writer, "{}", obj_rounded).unwrap();
 
-
     // write the solution vector
-    for &x in x_0.iter(){
+    for &x in x_0.iter() {
         writeln!(writer, "{}", x).unwrap();
     }
-
 }
