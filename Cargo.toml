@@ -11,6 +11,12 @@ repository = "https://github.com/DKenefake/MixingCut/"
 keywords = ["optimization", "SDP", "graph"]
 categories = ["command-line-utilities", "mathematics", "science"]
 
+include = [
+    "src/*",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
