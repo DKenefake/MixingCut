@@ -103,16 +103,15 @@ pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64
             temp *= v;
             g_i -= &temp;
         }
-
-        if g_i.norm_l2() <= 1E-24 {
-            continue;
+        
+        // if the norm of g_i is NOT too small, skip this row
+        if g_i.norm_l2() >= 1E-24 {
+            // normalize g_i
+            g_i /= g_i.norm_l2();
+            // update the i-th row of V
+            V.row_mut(i).assign(&g_i);
         }
-
-        // normalize g_i
-        g_i /= g_i.norm_l2();
-
-        // update the i-th row of V
-        V.row_mut(i).assign(&g_i);
+        
         // zero out g_i
         g_i.fill(0.0f64);
     }

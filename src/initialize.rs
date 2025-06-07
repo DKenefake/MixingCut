@@ -1,5 +1,6 @@
 use crate::sdp_project;
 use ndarray::Array2;
+use ndarray_linalg::normalize;
 use smolprng::{JsfLarge, PRNG};
 
 pub fn make_random_matrix(n: usize, k: usize, seed: Option<u64>) -> Array2<f64> {
@@ -7,14 +8,11 @@ pub fn make_random_matrix(n: usize, k: usize, seed: Option<u64>) -> Array2<f64> 
     let mut V = Array2::zeros((n, k));
 
     // instantiate a PRNG
-    let mut prng = match seed {
-        Some(real) => PRNG {
-            generator: JsfLarge::from(real),
-        },
-        None => PRNG {
-            generator: JsfLarge::default(),
-        },
-    };
+    let mut prng = seed.map_or_else(|| PRNG {
+        generator: JsfLarge::default(),
+    }, |real| PRNG {
+        generator: JsfLarge::from(real),
+    });
 
     // fill V with random values
     for i in 0..n {

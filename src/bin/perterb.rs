@@ -4,6 +4,8 @@ use clap::Parser;
 use mixingcut::io_operations;
 use mixingcut::sdp_solver::compute_approx_perturbation;
 use std::time::{SystemTime, UNIX_EPOCH};
+use mixingcut::maxcut_oracle::get_Q_norm;
+use mixingcut::step_rules::generate_step_rule;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -65,7 +67,11 @@ fn main() {
     let index_correction = args.index_correction;
 
     // read in the graph
-    let mut Q = io_operations::read_graph_matrix(&args.input_path, index_correction);
+    let Q = io_operations::read_graph_matrix(&args.input_path, index_correction);
+
+    let alpha_safe = get_Q_norm(&Q);
+
+    let step_rule = generate_step_rule(&args.step_rule, alpha_safe);
 
     let n = Q.shape().0;
 
@@ -84,7 +90,7 @@ fn main() {
         _ => args.rank,
     };
 
-    let y_sol = compute_approx_perturbation(&Q, Some(k), None, Some(max_iters), Some(tolerance));
+    let y_sol = compute_approx_perturbation(&Q, Some(k), None, Some(max_iters), Some(tolerance), Some(step_rule));
 
     let end = current_time();
 
@@ -92,6 +98,6 @@ fn main() {
     if verbose > 0 {
         println!("Perturbation solution: {:?}", y_sol);
         println!("Perturbation solution norm: {}", y_sol.sum());
-        println!("Solved in {:.2} seconds", end - start);
+        println!("Solved in {:.5} seconds", end - start);
     }
 }
