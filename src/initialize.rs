@@ -1,6 +1,5 @@
 use crate::sdp_project;
 use ndarray::Array2;
-use ndarray_linalg::normalize;
 use smolprng::{JsfLarge, PRNG};
 
 pub fn make_random_matrix(n: usize, k: usize, seed: Option<u64>) -> Array2<f64> {
