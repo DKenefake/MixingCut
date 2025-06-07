@@ -68,3 +68,14 @@ pub fn write_solution_matrix(path: &str, x_0: Array1<f64>, obj_rounded: f64, obj
         writeln!(writer, "{}", x).unwrap();
     }
 }
+
+pub fn write_dual_variables(path: &str, l: Array1<f64>) {
+    // open the file and create a writer
+    let file = std::fs::File::create(path).unwrap();
+    let mut writer = std::io::BufWriter::new(file);
+
+    // write the solution vector
+    for &x in l.iter() {
+        writeln!(writer, "{}", x).unwrap();
+    }
+}

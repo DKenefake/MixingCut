@@ -14,13 +14,12 @@ pub fn compute_approx_perturbation(
     iters: Option<usize>,
     stat_tol: Option<f64>,
     step_rule: Option<StepRule>,
+    verbose: bool,
 ) -> Array1<f64> {
 
     let use_rank = rank.map_or_else(|| (2 * Q.cols()).isqrt() + 1, |r| r);
 
     let norm_Q = get_Q_norm(Q);
-    
-    println!("The norm of Q {}", norm_Q);
     
     let use_iters = iters.unwrap_or(1000);
 
@@ -44,6 +43,13 @@ pub fn compute_approx_perturbation(
             // compute ||QV - y * V||_2^2
             QV = QV - &y.view().insert_axis(ndarray::Axis(1)) * &V;
             let norm_diff = QV.norm_l2().powi(2);
+            
+            if verbose{
+                println!(
+                    "Iteration {}: ||QV - y * V||_2^2 = {}",
+                    i, norm_diff,
+                );
+            }
             
             if norm_diff < use_stat_tol * norm_Q {
                 return y;

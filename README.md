@@ -1,5 +1,6 @@
-# MixingCut Solver
-MixingCut is a solver for the MaxCut SDP relaxation via mixing cut algorithm proposed by Po-Wei Wang et al [1]. This 
+# MixingCut Solver and Library 
+
+MixingCut is a solver and library for the MaxCut SDP relaxation via mixing cut algorithm proposed by Po-Wei Wang et al [1]. This 
 can solve general large scale instances of the MaxCut SDP relaxation problem.
 
 $$
@@ -10,9 +11,14 @@ s.t. &X_{ii} = 1\\
 \end{align*}
 $$
 
-# Usage
+In addition to the solver, this repository provides a library that can be used to integrate the components of the MixingCut algorithm into other applications. The library is designed to be modular and easy to use, allowing developers to leverage the power of the MixingCut algorithm in their own projects.
 
-The solver can be used via the command line with the following interface:
+
+# Binary Usage
+
+## Mixing Cut Solver
+
+The MixingCut solver can be used via the command line with the following interface:
 
 ```bash
 ./mixingcut \
@@ -52,7 +58,7 @@ specified in the command line with the following command:
 ./mixingcut --input-path <input_file>
 ```
 
-# Expected File Format
+### Expected File Format
 The solver reads the input from a file in the following format: Where `n` is the number of vertices, `i` and `j` are 
 the vertices of the edge and `q_ij` is the weight of the edge. In the case where ``q_ij`` is not specified, the 
 default value is 1.
@@ -65,7 +71,7 @@ i_2 j_2 q_{i_2,j_2}
 i_m j_m q_{i_m,j_m}
 ```
 
-# Output File Format
+### Output File Format
 The solver writes a rounded solution to a file in the following format: Where ``obj_sdp`` is the value of the 
 SDP relaxation, ``obj_rounded_sol`` is the value of the rounded solution and `x_i` is the value of the vertex `i`. 
 
@@ -77,6 +83,36 @@ x_1
 ...
 x_{n-1}
 ```
+
+## Perturb
+
+```bash
+./perturb \
+    --input-path <input_file> \
+    --output-path <output_file> \
+    --rank <rank> \
+    --tolerance <tolerance> \
+    --max-iters <max_iter> \
+    --index-correction <index-correction> \
+    --step-rule <step_rule> \
+    --verbose <verbose>
+```
+
+Where:
+- `<input_file>` is the path to the file containing the input data for the matrix ``Q``.
+- `<output_file>` is the path to the file where the output will be written. Default is ``output.txt``.
+- `<rank>` is the rank of the low rank approximation, and ``rank = 0`` selects ``2log2(n)``, and ``rank = 1``
+  selects ``sqrt(2n)`` as the rank. Default is ``0``
+- `<tolerance>` is the tolerance for the stopping criterion. If the stationarity condition error is less
+  than this number, solver termination occurs. Default is ``1e-2``.
+- `<max_iter>` is the maximum number of iterations. Default is ``1000``.
+- `<step_rule>` is the update rule for the mixing cut algorithm. Default is ``coord_no_step``. Options are ``grad``,
+  ``grad_adv``, ``coord`` and ``coord_no_step``.
+- `<index_correction>` is for reading the input graph file, if the vertices are 0-indexed or 1-indexed. Default is
+  ``1``.
+- `<dual_bound>` is the flag for computing the dual bound for the SDP relaxation. Default is ``0``. A value of ``1``
+  will compute the dual bound (this is an expensive(non computable) operation for large(huge) instances).
+- `<verbose>` is the flag for printing the output to the console. Default is ``1``. To disable output set to ``0``.
 
 # More Info 
 

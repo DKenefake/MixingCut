@@ -4,6 +4,7 @@ use clap::Parser;
 use mixingcut::io_operations;
 use mixingcut::sdp_solver::compute_approx_perturbation;
 use std::time::{SystemTime, UNIX_EPOCH};
+use mixingcut::io_operations::write_dual_variables;
 use mixingcut::maxcut_oracle::get_Q_norm;
 use mixingcut::step_rules::generate_step_rule;
 
@@ -89,8 +90,10 @@ fn main() {
         1 => (2.0 * n as f64).sqrt() as usize,
         _ => args.rank,
     };
-
-    let y_sol = compute_approx_perturbation(&Q, Some(k), None, Some(max_iters), Some(tolerance), Some(step_rule));
+    
+    let is_verbose = verbose > 0;
+    
+    let y_sol = compute_approx_perturbation(&Q, Some(k), None, Some(max_iters), Some(tolerance), Some(step_rule), is_verbose);
 
     let end = current_time();
 
@@ -100,4 +103,6 @@ fn main() {
         println!("Perturbation solution norm: {}", y_sol.sum());
         println!("Solved in {:.5} seconds", end - start);
     }
+
+    write_dual_variables(&args.output_path, y_sol);
 }
