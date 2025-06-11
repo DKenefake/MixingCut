@@ -73,7 +73,9 @@ pub fn make_step_coord(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64) -> A
 
         // compute g_i
         for (k, &v) in Q_i.iter() {
-            g_i = g_i + v * &V.row(k);
+            if k != i {
+                g_i = g_i + v * &V.row(k);
+            }
         }
 
         // normalize g_i
@@ -99,9 +101,11 @@ pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64
         let Q_i = Q.outer_view(i).unwrap();
         // compute g_i
         for (k, &v) in Q_i.iter() {
-            temp.assign(&V.row(k));
-            temp *= v;
-            g_i -= &temp;
+            if k != i {
+                temp.assign(&V.row(k));
+                temp *= v;
+                g_i -= &temp;
+            }
         }
 
         // if the norm of g_i is NOT too small, skip this row
