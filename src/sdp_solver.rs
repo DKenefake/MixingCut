@@ -27,7 +27,6 @@ pub fn compute_approx_perturbation(
     let use_step_rule = step_rule.unwrap_or(StepRule::CoordNoStep);
 
     let mut V = make_random_matrix(Q.rows(), use_rank, seed);
-    let mut QV = V.clone();
 
     for i in 0..use_iters {
         // take a single step of the coordinate descent
@@ -36,7 +35,7 @@ pub fn compute_approx_perturbation(
         V = sdp_project::project(V);
 
         if i % 100 == 0 {
-            QV = Q * &V;
+            let mut QV = Q * &V;
             let y = dual_variables_with_QV(&QV, &V);
 
             // compute ||QV - y * V||_2^2

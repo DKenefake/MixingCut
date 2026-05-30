@@ -3,9 +3,9 @@
 #![allow(dead_code)]
 
 pub mod initialize;
+pub mod io_operations;
+pub mod maxcut_oracle;
 pub mod sdp_local_search;
 pub mod sdp_project;
-pub mod step_rules;
-pub mod maxcut_oracle;
-pub mod io_operations;
 pub mod sdp_solver;
+pub mod step_rules;
