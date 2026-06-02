@@ -27,6 +27,14 @@ pub fn obj(Q: &CsMat<f64>, V: &Array2<f64>) -> f64 {
     trace
 }
 
+pub fn obj_from_qv(qv: &Array2<f64>, v: &Array2<f64>) -> f64 {
+    let mut trace = 0.0;
+    for i in 0..v.nrows() {
+        trace += qv.row(i).dot(&v.row(i));
+    }
+    trace
+}
+
 pub fn obj_rounded(Q: &CsMat<f64>, x_0: &Array1<f64>) -> f64 {
     Q.iter()
         .map(|(q_ij, (i, j)): (&f64, (usize, usize))| -> f64 {
