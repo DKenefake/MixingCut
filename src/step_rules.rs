@@ -31,6 +31,10 @@ pub fn apply_step(Q: &CsMat<f64>, V: Array2<f64>, step_rule: StepRule) -> Array2
     }
 }
 
+fn l2_norm(values: &Array1<f64>) -> f64 {
+    values.iter().map(|value| value * value).sum::<f64>().sqrt()
+}
+
 pub fn make_step(Q: &CsMat<f64>, V: Array2<f64>, alpha_safe: f64) -> Array2<f64> {
     // compute gradient
     let grad = grad(Q, &V);
@@ -90,34 +94,28 @@ pub fn make_step_coord(Q: &CsMat<f64>, mut V: Array2<f64>, alpha_safe: f64) -> A
 }
 
 pub fn make_step_coord_no_step(Q: &CsMat<f64>, mut V: Array2<f64>) -> Array2<f64> {
-    // make a scratch space for the gradient
-    let mut g_i = Array1::<f64>::zeros(V.shape()[1]);
-    let mut temp = Array1::<f64>::zeros(V.shape()[1]);
+    let rank = V.shape()[1];
+    let mut g_i = vec![0.0; rank];
 
-    // apply coordinate descent without a step size
     for i in 0..Q.shape().0 {
-        // take a view of the i-th row of Q
-
         let Q_i = Q.outer_view(i).unwrap();
-        // compute g_i
+
         for (k, &v) in Q_i.iter() {
             if k != i {
-                temp.assign(&V.row(k));
-                temp *= v;
-                g_i -= &temp;
+                for j in 0..rank {
+                    g_i[j] -= v * V[[k, j]];
+                }
             }
         }
 
-        // if the norm of g_i is NOT too small, skip this row
-        if g_i.norm_l2() >= 1E-24 {
-            // normalize g_i
-            g_i /= g_i.norm_l2();
-            // update the i-th row of V
-            V.row_mut(i).assign(&g_i);
+        let norm = g_i.iter().map(|value| value * value).sum::<f64>().sqrt();
+        if norm >= 1E-24 {
+            for j in 0..rank {
+                V[[i, j]] = g_i[j] / norm;
+            }
         }
 
-        // zero out g_i
-        g_i.fill(0.0f64);
+        g_i.fill(0.0);
     }
 
     V

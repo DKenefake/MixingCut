@@ -1,12 +1,11 @@
 #![allow(non_snake_case)] // reasoning: The code is based on linear algebra notation (X is a matrix, x is a vector)
 
 use clap::Parser;
-use mixingcut::initialize::make_random_matrix;
+use mixingcut::io_operations;
 use mixingcut::io_operations::write_solution_matrix;
-use mixingcut::maxcut_oracle::{compute_rounded_sol, get_Q_norm, obj};
+use mixingcut::maxcut_oracle::get_Q_norm;
+use mixingcut::sdp_solver::{solve_maxcut_sdp, SolveOptions, WarmStart};
 use mixingcut::step_rules::generate_step_rule;
-use mixingcut::{io_operations, maxcut_oracle, sdp_local_search, step_rules};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -55,13 +54,6 @@ struct Args {
     beam_width: usize,
 }
 
-fn current_time() -> f64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs_f64()
-}
-
 fn main() {
     let args: Args = Args::parse();
 
@@ -79,16 +71,12 @@ fn main() {
 
     let step_rule = generate_step_rule(&args.step_rule, alpha_safe);
 
-    let max_iters = args.max_iters;
-
     let verbose = args.verbose;
-
-    let max_rounding_iters = args.rounding_iters;
 
     // print the mixing cut vanity header if verbose
     if verbose == 1 {
         println!("------------------------------------------------------------------");
-        println!("               MixingCut v0.0.1 - MAX CUT SDP Solver              ");
+        println!("               MixingCut v0.1.4 - MAX CUT SDP Solver              ");
         println!("         (c) Dustin Kenefake, Texas A&M University, 2024          ");
         println!("------------------------------------------------------------------");
     }
@@ -99,9 +87,6 @@ fn main() {
         1 => (2.0 * n as f64).sqrt() as usize,
         _ => args.rank,
     };
-
-    // generate random initial point
-    let mut V = make_random_matrix(n, k, None);
 
     // print problem statistics if verbose
     if verbose == 1 {
@@ -117,85 +102,69 @@ fn main() {
         );
     }
 
-    // get current time
-    let start = current_time();
-
-    // get the objective value
-    let mut obj_val = obj(&Q, &V);
-
-    // iterate over the number of iterations
-    for i in 0..max_iters {
-        // apply the step rule
-        V = step_rules::apply_step(&Q, V, step_rule);
-
-        // compute the objective value
-        let new_obj_val = obj(&Q, &V);
-
-        // if the objective value is not changing, break
-        if (new_obj_val - obj_val).abs() < args.tolerance {
-            if verbose == 1 {
-                println!(
-                    "{0: <20} | {1: <20} | {2: <20.6}",
-                    i,
-                    new_obj_val,
-                    current_time() - start
-                );
-            }
-            break;
-        }
-
-        // if the objective value is increasing, break
-        if new_obj_val > obj_val {
-            if verbose == 1 {
-                println!("Objective value is increasing");
-            }
-            break;
-        }
-
-        obj_val = new_obj_val;
-
-        // every 10 iterations, print the objective value if verbose
-        if verbose == 1 && i % 10 == 0 {
-            println!(
-                "{0: <20} | {1: <20} | {2: <20.6}",
-                i,
-                obj_val,
-                current_time() - start
-            );
-        }
-    }
+    let result = solve_maxcut_sdp(
+        &Q,
+        &SolveOptions {
+            rank: Some(k),
+            seed: None,
+            max_iterations: args.max_iters,
+            min_stationarity_iterations: 20,
+            objective_tolerance: args.tolerance,
+            stationarity_tolerance: 1e-4,
+            rounding_iterations: args.rounding_iters,
+            beam_width: Some(args.beam_width),
+            compute_dual_bound: args.dual_bound == 1,
+            compute_rounding: true,
+            step_rule,
+            verbose: verbose == 1,
+            warm_start: WarmStart::Random,
+        },
+    );
 
     if verbose == 1 {
         println!("------------------------------------------------------------------")
     }
 
-    // compute the rounded solution
-    let (x_0, obj_rounded) = compute_rounded_sol(&Q, &V, max_rounding_iters);
-
     if verbose == 1 {
         // print the rounded solution
-        println!("Rounded solution: {:?} {:?}", obj_rounded, x_0.clone());
+        if let (Some(rounded_objective), Some(rounded_solution)) =
+            (result.rounded_objective, result.rounded_solution.as_ref())
+        {
+            println!(
+                "Rounded solution: {:?} {:?}",
+                rounded_objective, rounded_solution
+            );
+        }
 
-        // use beam search to generate better solutions
-        let rounded_sols = vec![x_0.clone()];
-
-        let (best_obj, best_sol) = sdp_local_search::beam_search(&Q, args.beam_width, rounded_sols);
-
-        println!(
-            "Rounded solution with local search: {:?} {:?}",
-            best_obj, best_sol
-        );
+        if let (Some(best_obj), Some(best_sol)) = (
+            result.locally_improved_objective,
+            result.locally_improved_solution.as_ref(),
+        ) {
+            println!(
+                "Rounded solution with local search: {:?} {:?}",
+                best_obj, best_sol
+            );
+        }
     }
 
     // print the dual bound
-    if args.dual_bound == 1 {
-        let dual_bound = maxcut_oracle::dual_bound(&Q, &V);
-
+    if let Some(dual_bound) = result.dual_bound {
         if verbose == 1 {
             println!("Dual bound: {:?}", dual_bound);
         }
     }
 
     // write the solution to a file
-    write_solution_matrix(&args.output_path, x_0, obj_rounded, obj(&Q, &V));
+    let rounded_solution = result
+        .rounded_solution
+        .expect("CLI solve should always compute a rounded solution");
+    let rounded_objective = result
+        .rounded_objective
+        .expect("CLI solve should always compute a rounded objective");
+    write_solution_matrix(
+        &args.output_path,
+        rounded_solution,
+        rounded_objective,
+        result.relaxed_objective,
+    );
 }
