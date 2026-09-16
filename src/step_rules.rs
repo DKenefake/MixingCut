@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use crate::maxcut_oracle::{grad, obj};
 use crate::sdp_project::project;
 use ndarray::{Array1, Array2};
@@ -133,39 +135,10 @@ pub(crate) fn make_step_coord_in_place(
 ) {
     validate_momentum(beta);
     if beta == 0.0 {
-        dispatch_coordinate_sweep::<false>(Q, V, scratch, beta);
+        coordinate_sweep::<false>(Q, V, scratch, beta);
     } else {
-        dispatch_coordinate_sweep::<true>(Q, V, scratch, beta);
+        coordinate_sweep::<true>(Q, V, scratch, beta);
     }
-}
-
-fn dispatch_coordinate_sweep<const MOMENTUM: bool>(
-    q: &CsMat<f64>,
-    v: &mut Array2<f64>,
-    scratch: &mut [f64],
-    beta: f64,
-) {
-    #[cfg(target_arch = "x86_64")]
-    if std::is_x86_feature_detected!("avx2") {
-        // SAFETY: the runtime check verifies AVX2 support, including OS vector state.
-        // All indexing and arithmetic in the specialized kernel use safe Rust.
-        unsafe {
-            coordinate_sweep_avx2::<MOMENTUM>(q, v, scratch, beta);
-        }
-        return;
-    }
-    coordinate_sweep::<MOMENTUM>(q, v, scratch, beta);
-}
-
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2")]
-unsafe fn coordinate_sweep_avx2<const MOMENTUM: bool>(
-    q: &CsMat<f64>,
-    v: &mut Array2<f64>,
-    scratch: &mut [f64],
-    beta: f64,
-) {
-    coordinate_sweep::<MOMENTUM>(q, v, scratch, beta);
 }
 
 #[inline(always)]
@@ -274,8 +247,36 @@ mod tests {
     use crate::initialize::make_random_matrix;
     use sprs::TriMat;
 
+    fn scalar_coordinate_sweep(q: &CsMat<f64>, v: &mut Array2<f64>, beta: f64) {
+        let rank = v.ncols();
+        for i in 0..q.rows() {
+            let mut gradient = vec![0.0; rank];
+            for (k, &weight) in q.outer_view(i).unwrap().iter() {
+                if k != i {
+                    for j in 0..rank {
+                        gradient[j] -= weight * v[[k, j]];
+                    }
+                }
+            }
+            let norm = gradient.iter().map(|g| g * g).sum::<f64>().sqrt();
+            if norm < 1e-24 {
+                continue;
+            }
+            for j in 0..rank {
+                let exact = gradient[j] / norm;
+                v[[i, j]] = (1.0 + beta) * exact - beta * v[[i, j]];
+            }
+            if beta != 0.0 {
+                let norm = v.row(i).iter().map(|x| x * x).sum::<f64>().sqrt();
+                for j in 0..rank {
+                    v[[i, j]] /= norm;
+                }
+            }
+        }
+    }
+
     #[test]
-    fn portable_and_dispatched_kernels_match_across_vector_tails() {
+    fn blocked_kernel_matches_scalar_reference_across_vector_tails() {
         let mut tri = TriMat::new((8, 8));
         for i in 0..7 {
             for j in i + 1..7 {
@@ -288,24 +289,20 @@ mod tests {
         let q = tri.to_csr();
         for rank in [1, 2, 3, 4, 5, 7, 8, 9, 16, 21, 33, 41, 65] {
             for beta in [0.0, 0.2, 0.5, 0.8, 0.99] {
-                let mut portable = make_random_matrix(8, rank, Some(71));
-                let isolated_row = portable.row(7).to_owned();
-                let mut dispatched = portable.clone();
+                let mut reference = make_random_matrix(8, rank, Some(71));
+                let isolated_row = reference.row(7).to_owned();
+                let mut actual = reference.clone();
                 let mut scratch = vec![0.0; rank];
-                let mut previous = obj(&q, &portable);
+                let mut previous = obj(&q, &reference);
                 for _ in 0..15 {
-                    if beta == 0.0 {
-                        coordinate_sweep::<false>(&q, &mut portable, &mut scratch, beta);
-                    } else {
-                        coordinate_sweep::<true>(&q, &mut portable, &mut scratch, beta);
-                    }
-                    make_step_coord_in_place(&q, &mut dispatched, &mut scratch, beta);
-                    assert!((&portable - &dispatched).iter().all(|v| v.abs() < 1e-12));
-                    assert_eq!(dispatched.row(7), isolated_row.view());
-                    for row in dispatched.rows() {
+                    scalar_coordinate_sweep(&q, &mut reference, beta);
+                    make_step_coord_in_place(&q, &mut actual, &mut scratch, beta);
+                    assert!((&reference - &actual).iter().all(|v| v.abs() < 1e-12));
+                    assert_eq!(actual.row(7), isolated_row.view());
+                    for row in actual.rows() {
                         assert!((row.dot(&row) - 1.0).abs() < 1e-13);
                     }
-                    let current = obj(&q, &dispatched);
+                    let current = obj(&q, &actual);
                     assert!(current <= previous + 1e-10);
                     previous = current;
                 }

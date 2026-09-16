@@ -1,6 +1,7 @@
 #![warn(clippy::all, clippy::cargo, clippy::nursery)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+#![forbid(unsafe_code)]
 
 pub mod initialize;
 pub mod io_operations;
