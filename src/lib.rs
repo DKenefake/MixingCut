@@ -1,6 +1,7 @@
 #![warn(clippy::all, clippy::cargo, clippy::nursery)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+#![forbid(unsafe_code)]
 
 pub mod initialize;
 pub mod io_operations;
@@ -9,3 +10,6 @@ pub mod sdp_local_search;
 pub mod sdp_project;
 pub mod sdp_solver;
 pub mod step_rules;
+
+#[cfg(test)]
+mod sdp_solver_regression_tests;

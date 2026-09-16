@@ -1,5 +1,5 @@
 use ndarray::{Array1, Array2};
-use ndarray_linalg::{Eigh, Norm, UPLO};
+use ndarray_linalg::{AllocatedArray, Lapack, Norm, UPLO};
 use smolprng::{JsfLarge, PRNG};
 use sprs::CsMat;
 
@@ -79,28 +79,60 @@ pub fn dual_variables_with_QV(QV: &Array2<f64>, V: &Array2<f64>) -> Array1<f64> 
 }
 
 pub fn dual_bound(Q: &CsMat<f64>, V: &Array2<f64>) -> f64 {
-    // this is very expensive to compute O(n^3) no matter what
-
-    let n = Q.shape().0 as f64;
     let y = dual_variables(Q, V);
-    let y_sum = y.iter().sum::<f64>();
+    dual_bound_from_variables(Q, &y)
+}
 
-    // start the S matrix from the dense version of Q
-    let mut S = Q.to_dense();
-
-    // subtract the dual variables from the diagonal
-    for i in 0..Q.shape().0 {
-        S[[i, i]] -= y[i];
+/// A cheap bound using |X_ij| <= 1 when X is PSD and diag(X) = 1.
+pub fn entrywise_lower_bound(q: &CsMat<f64>) -> f64 {
+    let mut bound = 0.0;
+    let mut magnitude = 0.0;
+    for (&value, (i, j)) in q {
+        bound += if i == j { value } else { -value.abs() };
+        magnitude += value.abs();
     }
+    bound - 8.0 * f64::EPSILON * (q.nnz() as f64 + 1.0) * magnitude
+}
 
-    // compute the eigenvalues
-    let (eigs, _) = S.eigh(UPLO::Upper).unwrap();
-
-    // find the lowest eigenvalue
-    let min_eig = eigs.iter().fold(f64::INFINITY, |acc, &x| x.min(acc));
-
-    // return the dual bound
-    min_eig.mul_add(n, y_sum)
+/// Repair a candidate dual using the smallest slack eigenvalue.
+/// Includes a floating-point safety margin, not an interval-arithmetic proof.
+pub fn dual_bound_from_variables(q: &CsMat<f64>, y: &Array1<f64>) -> f64 {
+    assert_eq!(q.rows(), y.len());
+    if y.is_empty() {
+        return 0.0;
+    }
+    let n = q.rows() as f64;
+    let mut slack = q.to_dense();
+    for i in 0..q.rows() {
+        slack[[i, i]] -= y[i];
+    }
+    let slack_norm = slack
+        .rows()
+        .into_iter()
+        .map(|row| row.iter().map(|value| value.abs()).sum::<f64>())
+        .fold(0.0, f64::max);
+    let margin = 64.0 * f64::EPSILON * n * slack_norm;
+    // ndarray-linalg 0.18.1's eigvalsh still calls eigh(true). Explicitly disable
+    // eigenvectors at the safe LAPACK layer instead of paying for discarded vectors.
+    let layout = slack.square_layout().expect("slack must be square");
+    let Ok(eigenvalues) = f64::eigh(
+        false,
+        layout,
+        UPLO::Upper,
+        slack
+            .as_slice_memory_order_mut()
+            .expect("dense slack must be contiguous"),
+    ) else {
+        return entrywise_lower_bound(q);
+    };
+    let min_eigenvalue = eigenvalues[0];
+    if !min_eigenvalue.is_finite() {
+        return entrywise_lower_bound(q);
+    }
+    let shift = (min_eigenvalue - margin).min(0.0);
+    let sum_margin =
+        8.0 * f64::EPSILON * n * (y.iter().map(|value| value.abs()).sum::<f64>() + n * shift.abs());
+    shift.mul_add(n, y.sum()) - sum_margin
 }
 
 pub fn compute_rounded_sol(Q: &CsMat<f64>, V: &Array2<f64>, iters: usize) -> (Array1<f64>, f64) {

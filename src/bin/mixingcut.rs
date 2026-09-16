@@ -4,7 +4,7 @@ use clap::Parser;
 use mixingcut::io_operations;
 use mixingcut::io_operations::write_solution_matrix;
 use mixingcut::maxcut_oracle::get_Q_norm;
-use mixingcut::sdp_solver::{solve_maxcut_sdp, SolveOptions, WarmStart};
+use mixingcut::sdp_solver::{default_sdp_rank, solve_maxcut_sdp, SolveOptions, WarmStart};
 use mixingcut::step_rules::generate_step_rule;
 
 #[derive(Parser, Debug)]
@@ -32,6 +32,10 @@ struct Args {
     // Step Rule
     #[clap(short, long, default_value = "coord_no_step")]
     step_rule: String,
+
+    // Mixing++ coefficient, used only with coord_momentum.
+    #[clap(long, default_value = "0.5")]
+    momentum: f64,
 
     // index correction
     #[clap(long, default_value = "1")]
@@ -69,7 +73,12 @@ fn main() {
 
     let n = Q.shape().0;
 
-    let step_rule = generate_step_rule(&args.step_rule, alpha_safe);
+    let coefficient = if args.step_rule == "coord_momentum" {
+        args.momentum
+    } else {
+        alpha_safe
+    };
+    let step_rule = generate_step_rule(&args.step_rule, coefficient);
 
     let verbose = args.verbose;
 
@@ -83,8 +92,7 @@ fn main() {
 
     // set up the rank size of the problem
     let k = match args.rank {
-        0 => 2 * (n as f64).log2() as usize,
-        1 => (2.0 * n as f64).sqrt() as usize,
+        0 | 1 => default_sdp_rank(n),
         _ => args.rank,
     };
 
