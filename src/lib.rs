@@ -9,3 +9,6 @@ pub mod sdp_local_search;
 pub mod sdp_project;
 pub mod sdp_solver;
 pub mod step_rules;
+
+#[cfg(test)]
+mod sdp_solver_regression_tests;

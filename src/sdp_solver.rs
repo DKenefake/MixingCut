@@ -1,14 +1,15 @@
 use crate::initialize::make_random_matrix;
 use crate::maxcut_oracle::{
-    compute_rounded_sol, dual_bound, dual_variables, dual_variables_with_QV, get_Q_norm, obj,
-    obj_from_qv,
+    compute_rounded_sol, dual_bound_from_variables, dual_variables, dual_variables_with_QV,
+    entrywise_lower_bound, get_Q_norm, obj,
 };
 use crate::sdp_local_search::beam_search;
 use crate::sdp_project;
-use crate::step_rules::{apply_step, StepRule};
+use crate::step_rules::{apply_step, make_step_coord_in_place, validate_momentum, StepRule};
 use ndarray::{Array1, Array2};
 use ndarray_linalg::Norm;
 use sprs::{CsMat, TriMat};
+use std::borrow::Cow;
 use std::time::Instant;
 
 #[derive(Clone)]
@@ -97,7 +98,10 @@ pub struct ReducedSolveResult {
 }
 
 pub struct QuboSdpResult {
+    /// Dual-repaired bound when requested; otherwise a cheap entrywise lower bound.
     pub qubo_lower_bound: f64,
+    /// Primal SDP objective. This is not a certified QUBO lower bound.
+    pub relaxed_objective: f64,
     pub factor_matrix: Array2<f64>,
     pub dual_variables: Array1<f64>,
     pub dual_bound: Option<f64>,
@@ -276,8 +280,55 @@ impl ReducedProblem {
     }
 }
 
-fn resolve_rank(q: &CsMat<f64>, rank: Option<usize>) -> usize {
-    rank.map_or_else(|| 2 * (q.rows() as f64).log2() as usize, |value| value)
+/// Rank capacity with a safety column; stationarity alone does not certify optimality.
+#[must_use]
+pub fn default_sdp_rank(n: usize) -> usize {
+    (((2.0 * n as f64).sqrt().ceil() as usize) + 1)
+        .min(n)
+        .max(1)
+}
+
+fn resolve_rank(q: &CsMat<f64>, options: &SolveOptions) -> usize {
+    let rank = options.rank.unwrap_or_else(|| match &options.warm_start {
+        WarmStart::Factor(v) => v.ncols(),
+        _ => default_sdp_rank(q.rows()),
+    });
+    assert!(rank > 0, "factor rank must be positive");
+    rank
+}
+
+fn separate_diagonal(q: &CsMat<f64>) -> (Cow<'_, CsMat<f64>>, Array1<f64>) {
+    let mut diagonal = Array1::zeros(q.rows());
+    for (&value, (i, j)) in q {
+        if i == j {
+            diagonal[i] = value;
+        }
+    }
+    if q.is_csr() && diagonal.iter().all(|&value| value == 0.0) {
+        return (Cow::Borrowed(q), diagonal);
+    }
+    let csr = if q.is_csr() {
+        Cow::Borrowed(q)
+    } else {
+        Cow::Owned(q.to_csr())
+    };
+    let mut indptr = Vec::with_capacity(q.rows() + 1);
+    let mut indices = Vec::with_capacity(q.nnz());
+    let mut data = Vec::with_capacity(q.nnz());
+    indptr.push(0);
+    for (i, row) in csr.outer_iterator().enumerate() {
+        for (j, &value) in row.iter() {
+            if i != j {
+                indices.push(j);
+                data.push(value);
+            }
+        }
+        indptr.push(data.len());
+    }
+    (
+        Cow::Owned(CsMat::new(q.shape(), indptr, indices, data)),
+        diagonal,
+    )
 }
 
 fn prepare_initial_factor(
@@ -285,26 +336,26 @@ fn prepare_initial_factor(
     rank: usize,
     seed: Option<u64>,
     warm_start: &WarmStart,
+    perturb_signs: bool,
 ) -> Array2<f64> {
     match warm_start {
         WarmStart::Random => make_random_matrix(q.rows(), rank, seed),
         WarmStart::Factor(v) => {
             assert_eq!(v.nrows(), q.rows(), "warm-start factor row count mismatch");
             assert_eq!(v.ncols(), rank, "warm-start factor rank mismatch");
-            sdp_project::project(v.clone())
+            sdp_project::project(v.as_standard_layout().into_owned())
         }
         WarmStart::Signs(x) => {
             assert_eq!(x.len(), q.rows(), "warm-start sign vector length mismatch");
-            let mut v = Array2::<f64>::zeros((q.rows(), rank));
+            // An exact rank-one sign embedding cannot escape under coordinate updates.
+            // Leave zero-iteration evaluations exact, but seed transverse directions for solves.
+            let mut v = if perturb_signs && rank > 1 {
+                1e-2 * make_random_matrix(q.rows(), rank, seed)
+            } else {
+                Array2::<f64>::zeros((q.rows(), rank))
+            };
             for i in 0..q.rows() {
                 v[[i, 0]] = if x[i] >= 0.0 { 1.0 } else { -1.0 };
-            }
-            if rank > 1 {
-                for i in 0..q.rows() {
-                    for j in 1..rank {
-                        v[[i, j]] = 0.0;
-                    }
-                }
             }
             sdp_project::project(v)
         }
@@ -339,62 +390,98 @@ pub fn solve_maxcut_sdp(q: &CsMat<f64>, options: &SolveOptions) -> SolveResult {
 
 #[must_use]
 pub fn solve_maxcut_sdp_profiled(q: &CsMat<f64>, options: &SolveOptions) -> ProfiledSolveResult {
-    let rank = resolve_rank(q, options.rank);
+    assert_eq!(q.rows(), q.cols(), "objective must be square");
+    assert!(q.rows() > 0, "objective must be nonempty");
+    let rank = resolve_rank(q, options);
     let start = Instant::now();
-    let mut v = prepare_initial_factor(q, rank, options.seed, &options.warm_start);
-    let mut obj_val = obj(q, &v);
+    let (off_diagonal, diagonal) = separate_diagonal(q);
+    let work_q = off_diagonal.as_ref();
+    let diagonal_sum = diagonal.sum();
+    let mut v = prepare_initial_factor(
+        q,
+        rank,
+        options.seed,
+        &options.warm_start,
+        options.max_iterations > 0,
+    );
+    let mut obj_val = obj(work_q, &v);
+    let mut last_dual = None;
+    let mut scratch = vec![0.0; rank];
+    let coordinate_momentum = match options.step_rule {
+        StepRule::CoordNoStep => Some(0.0),
+        StepRule::CoordMomentum(beta) => {
+            validate_momentum(beta);
+            Some(beta)
+        }
+        _ => None,
+    };
     let mut status = SolveStatus::MaxIterations;
     let mut iterations = 0;
-    let objective_check_frequency = if options.verbose { 10 } else { 20 };
+    let objective_check_frequency = 20;
     for i in 0..options.max_iterations {
-        v = apply_step(q, v, options.step_rule);
+        if let Some(beta) = coordinate_momentum {
+            make_step_coord_in_place(work_q, &mut v, &mut scratch, beta);
+        } else {
+            v = apply_step(work_q, v, options.step_rule);
+        }
         iterations = i + 1;
         let should_check_objective = iterations == 1
+            || iterations == options.min_stationarity_iterations
             || iterations == options.max_iterations
             || iterations % objective_check_frequency == 0;
 
         if should_check_objective {
-            let qv = q * &v;
+            let qv = work_q * &v;
             let dual = dual_variables_with_QV(&qv, &v);
             let residual = stationarity_residual_from_qv_with_dual(&qv, &v, &dual);
             let qv_norm = frobenius_norm(&qv);
             let stationarity_threshold = options.stationarity_tolerance * qv_norm.max(1.0);
-            let new_obj_val = obj_from_qv(&qv, &v);
+            let new_obj_val = dual.sum();
+            let previous_obj_val = obj_val;
+            obj_val = new_obj_val;
+            last_dual = Some(dual);
+
+            if options.verbose {
+                println!(
+                    "Iteration {iterations}: objective {}, stationarity {residual}",
+                    new_obj_val + diagonal_sum
+                );
+            }
 
             if iterations >= options.min_stationarity_iterations
                 && residual <= stationarity_threshold
             {
-                obj_val = new_obj_val;
                 status = SolveStatus::ObjectiveTolerance;
                 break;
             }
 
-            if options.verbose && i % 10 == 0 {
-                println!("Iteration {i}: objective {new_obj_val}, stationarity {residual}");
-            }
-
-            if !matches!(options.step_rule, StepRule::CoordNoStep)
-                && (new_obj_val - obj_val).abs() < options.objective_tolerance
+            if coordinate_momentum.is_none()
+                && (new_obj_val - previous_obj_val).abs() < options.objective_tolerance
             {
-                obj_val = new_obj_val;
                 status = SolveStatus::ObjectiveTolerance;
                 break;
             }
 
-            if !matches!(options.step_rule, StepRule::CoordNoStep) && new_obj_val > obj_val {
+            if coordinate_momentum.is_none() && new_obj_val > previous_obj_val {
                 status = SolveStatus::ObjectiveIncreased;
                 break;
             }
-
-            obj_val = new_obj_val;
         }
     }
 
     let iteration_seconds = start.elapsed().as_secs_f64();
     let finalization_start = Instant::now();
-    let qv = q * &v;
-    let dual_variables = dual_variables_with_QV(&qv, &v);
-    let dual_bound_value = options.compute_dual_bound.then(|| dual_bound(q, &v));
+    // The final sweep is always checked, so only zero-iteration solves need QV here.
+    let off_dual = last_dual.unwrap_or_else(|| dual_variables_with_QV(&(work_q * &v), &v));
+    let dual_bound_value = options.compute_dual_bound.then(|| {
+        let bound = dual_bound_from_variables(work_q, &off_dual);
+        let addition_margin = 8.0
+            * f64::EPSILON
+            * q.rows() as f64
+            * (diagonal.iter().map(|value| value.abs()).sum::<f64>() + bound.abs());
+        bound + diagonal_sum - addition_margin
+    });
+    let dual_variables = off_dual + &diagonal;
     let (
         rounded_solution,
         rounded_objective,
@@ -430,7 +517,7 @@ pub fn solve_maxcut_sdp_profiled(q: &CsMat<f64>, options: &SolveOptions) -> Prof
     ProfiledSolveResult {
         solve_result: SolveResult {
             factor_matrix: v,
-            relaxed_objective: obj_val,
+            relaxed_objective: obj_val + diagonal_sum,
             dual_variables,
             dual_bound: dual_bound_value,
             rounded_solution,
@@ -481,7 +568,10 @@ pub fn solve_qubo_sdp_subproblem(
     let sdp_result = solve_maxcut_sdp(&sign_matrix, options);
 
     QuboSdpResult {
-        qubo_lower_bound: sdp_result.relaxed_objective,
+        qubo_lower_bound: sdp_result
+            .dual_bound
+            .unwrap_or_else(|| entrywise_lower_bound(&sign_matrix)),
+        relaxed_objective: sdp_result.relaxed_objective,
         factor_matrix: sdp_result.factor_matrix,
         dual_variables: sdp_result.dual_variables,
         dual_bound: sdp_result.dual_bound,
@@ -949,7 +1039,7 @@ mod tests {
                 stationarity_tolerance: 1e-8,
                 rounding_iterations: 0,
                 beam_width: Some(0),
-                compute_dual_bound: false,
+                compute_dual_bound: true,
                 compute_rounding: false,
                 step_rule: StepRule::CoordNoStep,
                 verbose: false,
