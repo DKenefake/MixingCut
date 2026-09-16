@@ -85,7 +85,10 @@ fn main() {
     // print the mixing cut vanity header if verbose
     if verbose == 1 {
         println!("------------------------------------------------------------------");
-        println!("               MixingCut v0.1.4 - MAX CUT SDP Solver              ");
+        println!(
+            "               MixingCut v{} - MAX CUT SDP Solver              ",
+            env!("CARGO_PKG_VERSION")
+        );
         println!("         (c) Dustin Kenefake, Texas A&M University, 2024          ");
         println!("------------------------------------------------------------------");
     }
